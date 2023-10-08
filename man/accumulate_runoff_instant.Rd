@@ -17,7 +17,7 @@ Returns the input object \code{HS}) with an added list column
    segment.
 }
 \description{
-Applies the simplest possible river routing scheme, instantaenous flow, by 
+Applies the simplest possible river routing scheme, instantaneous flow, by 
 adding runoff from each river segment to all of the segments downstream, for 
 each timestep.
 }

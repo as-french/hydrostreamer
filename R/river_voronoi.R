@@ -42,7 +42,7 @@ river_voronoi<- function(river, aoi, riverID = "riverID", verbose=FALSE) {
         stop("river input should be an 'sf' LINESTRING object")
     }
 
-    IDs <- dplyr::select_(river, riverID) %>% 
+    IDs <- dplyr::select(river, riverID) %>% 
         sf::st_set_geometry(NULL) %>% 
         unlist() %>% 
         unname()

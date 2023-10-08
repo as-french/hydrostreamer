@@ -32,7 +32,7 @@ raster_to_HS <- function(rasters,
     . <- NULL
     Date <- NULL
     zoneID <- NULL
-    
+    #date_origin = as.Date(as.character(date))
     # -------------------------------------------------------------------------
     # TEST
     
@@ -134,6 +134,7 @@ raster_to_HS <- function(rasters,
             grid <- suppressWarnings(
                 suppressMessages(
                     methods::as(grid, "sf") %>%
+                        sf::st_set_crs(paste0("EPSG:",sf::st_crs(aoi)$epsg)) %>%
                         sf::st_intersection(., sf::st_union(aoi))
                 )
             )
@@ -175,6 +176,7 @@ raster_to_HS <- function(rasters,
                                  " number ",rast))
         }
         data$Date <- dates
+        #data$Date <- as.Date(as.character(dates),origin = date_origin)
         
         grid <-  dplyr::select(grid, zoneID)
         

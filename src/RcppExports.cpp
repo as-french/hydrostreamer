@@ -5,6 +5,11 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // constantroute
 NumericMatrix constantroute(NumericMatrix inflow, List record, int pad_n, int nseg);
 RcppExport SEXP _hydrostreamer_constantroute(SEXP inflowSEXP, SEXP recordSEXP, SEXP pad_nSEXP, SEXP nsegSEXP) {

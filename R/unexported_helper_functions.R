@@ -283,7 +283,7 @@ collect_listc <- function(ts, acc = FALSE) {
             colnames(temp) <- c("Date", names(ts))
             temp <- temp %>% 
                 dplyr::mutate(Date = lubridate::as_date(Date)) %>%
-                tibble::as_tibble() 
+                tibble::as_tibble(.name_repair = "minimal") 
             output[[tsi]] <- temp
         }
     }
@@ -305,7 +305,7 @@ init_ts <- function(ts) {
     output <- lapply(output, function(x) {
         tsib <- matrix(NA, ncol=length(ts)+1, nrow=length(dates)) 
         colnames(tsib) <- c("Date", names(ts))
-        tsib <- tibble::as_tibble(tsib)
+        tsib <- tibble::as_tibble(tsib, .name_repair = "minimal")
         tsib$Date <- dates
         return(tsib)
     })
@@ -434,12 +434,12 @@ convert_unit <- function(value, from = NULL, to1, to2, verbose = FALSE) {
                 silent = TRUE)
     
     # if first conversion fails, try converting to alternative
-    if(class(conv) == "try-error") {
+    if(inherits(conv, "try-error")) {
         conv <- try(units::set_units(value, to2, mode="standard"),
                     silent = TRUE)
         
         # stop conversion to alternative didnt work
-        if(class(conv) == "try-error") {
+        if(inherits(conv, "try-error")) {
             stop(paste0("Couldn't convert units. Are you sure the unit's type is ",
                         "depth per time (e.g. mm/d) or volume per time ",
                         "(e.g. m^3/s)?"))

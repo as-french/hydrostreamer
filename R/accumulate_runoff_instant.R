@@ -1,6 +1,6 @@
 #' Apply instantaneous river routing
 #' 
-#' Applies the simplest possible river routing scheme, instantaenous flow, by 
+#' Applies the simplest possible river routing scheme, instantaneous flow, by 
 #' adding runoff from each river segment to all of the segments downstream, for 
 #' each timestep.
 #'
@@ -54,11 +54,13 @@ accumulate_runoff_instant <- function(HS,
     dboundary <- FALSE
   }
   
+  HS_no_geom = HS %>%
+      sf::st_drop_geometry()
   
   # ----------------------------------------------------------------------------
   # do routing
   
-  lengths <- sf::st_length(HS) %>% unclass()
+  #lengths <- sf::st_length(HS) %>% unclass()
   IDs <- dplyr::select(HS, riverID) %>% 
     sf::st_set_geometry(NULL) %>% 
     unlist()
@@ -72,9 +74,23 @@ accumulate_runoff_instant <- function(HS,
     match(IDs)
   
   ## find next river
-  ind <- find_attribute(HS, "next_col", TRUE)
-  nextriver <- dplyr::pull(HS, ind) %>%
-    match(IDs)
+  # code adapted from Aaron Rendahl's answer,
+  # edited by Matthijs S. Berends
+  # https://stackoverflow.com/a/11002456
+  ind <- find_attribute(HS_no_geom, "prev_col", TRUE)
+  a = purrr::pluck(HS_no_geom, ind)
+  b = IDs
+  g = rep(seq_along(a), sapply(a, length))
+  aa = unlist(a)
+  au = unique(aa)
+  af = factor(aa, levels = au)
+  gg = split(g, af)
+  nextriver = gg[match(b, au)]
+  names(nextriver) = HS_no_geom$riverID
+  # make NULL NAs
+  nextriver = sapply(nextriver, function(nu) {
+      res = ifelse(is.null(nu), as.integer(NA), list(nu))
+  })
   
   
   discharge <- HS$runoff_ts
@@ -135,13 +151,20 @@ accumulate_runoff_instant <- function(HS,
     }
     
     # if there is no downstream segments, go to next seg
-    if(is.na(nextriver[[seg]])) {
+    if(all(is.na(nextriver[[seg]]))) {
       next
     }
     
     # update next segment discharge
-    new_dis <- discharge[[ nextriver[seg] ]][,-1] + discharge[[seg]][,-1]
-    discharge[[ nextriver[seg] ]][,-1] <- new_dis
+    splt_no = length(discharge[nextriver[[seg]]])
+    
+    
+    new_dis <-
+        lapply(X = discharge[nextriver[[seg]]], function(jj) {
+            jj[-1] = jj[-1] + (discharge[[seg]][,-1] / splt_no)
+            return(jj)
+        })
+    discharge[nextriver[[seg]]] <- new_dis
     
     
     
@@ -196,7 +219,7 @@ accumulate_runoff_instant <- function(HS,
   output <- HS 
   output$discharge_ts <- discharge
   output <- output %>%
-    tibble::as_tibble() %>%
+    tibble::as_tibble(.name_repair = "minimal") %>%
     sf::st_as_sf()
   
   if (verbose) close(pb)

@@ -110,7 +110,7 @@ create_river <- function(dem,
     }
     
     # Try to search automatically for a SAGA environment if nothing was given
-    if (class(rsaga_env) != "list"){
+    if (!inherits(rsaga_env,"list")){
         saga_env <- tryCatch({
             # rsaga.env() pushes a warning even if everything is right
             saga_env <- suppressWarnings(RSAGA::rsaga.env())
