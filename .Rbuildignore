@@ -16,3 +16,4 @@ testthat.R
 temp.RData
 musk.csv
 ^data-raw$
+^\.github$
