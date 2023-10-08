@@ -283,7 +283,7 @@ collect_listc <- function(ts, acc = FALSE) {
             colnames(temp) <- c("Date", names(ts))
             temp <- temp %>% 
                 dplyr::mutate(Date = lubridate::as_date(Date)) %>%
-                tibble::as_tibble(.name_repair = "minimal") 
+                tibble::as_tibble(.name_repair = "universal") 
             output[[tsi]] <- temp
         }
     }

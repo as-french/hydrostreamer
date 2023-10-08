@@ -137,7 +137,7 @@ downscale_with_weights <- function(HSweights,
         }
 
         QTS <- units::set_units(QTS, "m3/s")
-        QTS <- dplyr::as_tibble(QTS,.name_repair = "minimal")
+        QTS <- dplyr::as_tibble(QTS, .name_repair = "minimal")
         colnames(QTS) <- rIDs
         QTS$Date <- unidates
         QTS <- dplyr::select(QTS, Date, dplyr::everything()) 

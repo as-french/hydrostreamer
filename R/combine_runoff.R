@@ -194,7 +194,7 @@ combine_runoff.list <- function(HS,
                
                 data[,w] <- result
             }
-            data <- tibble::as_tibble(data, .name_repair = "minimal")
+            data <- tibble::as_tibble(data, .name_repair = "universal")
             
             for(i in 1:ncol(data)) {
                 data[,i] <- units::as_units(dplyr::pull(data, i), unit)
