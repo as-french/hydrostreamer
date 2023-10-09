@@ -46,7 +46,8 @@ Suggests:
     exactextractr,
     terra,
     ggplot2,
-    classInt
+    classInt,
+    plotly
 LinkingTo: 
     Rcpp
 LazyData: true

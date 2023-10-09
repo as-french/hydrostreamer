@@ -5,19 +5,32 @@ date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{hydrostreamer tutorial}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  eval = FALSE,
-  comment = "#>"
-)
+# Ensure that vignette can be built or is not evaluated if all Suggests are not
+# present (https://www.r-bloggers.com/2017/03/suggests-and-vignettes/)
+required <- c("ggplot2")
+
+if (!all(unlist(lapply(required,
+                       function(pkg)
+                         requireNamespace(pkg, quietly = TRUE))))) {
+  knitr::opts_chunk$set(eval = TRUE)
+} else {
+  knitr::opts_chunk$set(collapse = TRUE,
+                        comment = "#>",
+                        fig.width = 7,
+                        fig.height = 7,
+                        fig.align = "center")
+ }
+
 ```
 
-This tutorial aims to explain the workflow in *hydrostreamer* and showcase some of it's capabilities. More specific tutorials will be added in time, which concentrate on different parts of hydrostreamer
+This tutorial aims to explain the workflow in *hydrostreamer* and showcase some of its capabilities. More specific tutorials will be added in time, which concentrate on different parts of hydrostreamer
 
 # Using **hydrostreamer**
 
@@ -33,25 +46,47 @@ Some example data have been included to the package for tutorial purposes. It in
 
 Let's first load the data and inspect it:
 
-```{r message=FALSE, warning=FALSE}
+```{r inspect_data, message=FALSE, warning=FALSE}
 library(hydrostreamer)
 library(raster)
 library(lubridate)
 library(dplyr)
 library(sf)
 
-data(example_rivers)
+# fixes problem that results later with message similar to "Loop 0 is not valid:
+# Edge 70 is degenerate (duplicate vertex)"
+# see https://github.com/r-spatial/sf/issues/1762
+sf::sf_use_s2(FALSE)
+
+# basins
 data(example_basins)
+st_crs(basins) <- st_crs(basins) # see https://github.com/r-spatial/sf/issues/1811
+basins <- basins %>%
+    sf::st_set_crs("EPSG:4326") %>%
+     dplyr::rename(riverID = SEGMENT_ID)
+
+plot(basins$geom, col = "lightgreen")
+
+# rivers
+data(example_rivers)
+st_crs(river) <- st_crs(river) # see https://github.com/r-spatial/sf/issues/1811
+river <- river %>%
+    dplyr::rename(riverID = SEGMENT_ID) %>%
+    sf::st_set_crs("EPSG:4326")
+
+plot(river$geom, add = TRUE, col = "blue")
+
 runoff <- brick(system.file("extdata", "runoff.tif", package = "hydrostreamer"))
 dem <- brick(system.file("extdata", "dem.tif", package = "hydrostreamer")) 
 
 plot(runoff[[1]]) 
-plot(st_union(basins), add=TRUE)
+plot((st_union(basins)), add=TRUE)
 plot(river, add=TRUE)
 
 plot(dem)
-plot(st_union(basins), add=TRUE)
+plot((st_union(basins)), add=TRUE)
 plot(river, add=TRUE)
+plot(basins,add = TRUE, col = NA)
 
 ```
 
@@ -68,7 +103,7 @@ The raster layers are converted to polygons in order to do all the computations 
 
 We use **raster_to_HS** to convert a raster timeseries to a HS object.
 
-```{r message=FALSE, warning=FALSE}
+```{r convert_to_HS, message=FALSE, warning=FALSE}
 source_runoff <- raster_to_HS(runoff, 
                        unit = "mm/s",
                        date = ymd("1980-01-01"), 
@@ -88,21 +123,20 @@ HS objects can also be created from an 'sf' (polygon) object and a runoff timese
 
 The four areal interpolation methods shown here are explained in more detail in our recent (2019) conference paper [here](https://mssanz.org.au/modsim2019/K8/kallio.pdf). The following figure is from the publication, visualizing the different methods:
 
-![Figure 1. Conceptual presentation of the areal interpolation methods and their result. Panel A presents the catchment areas (A1) and ancillary variable (A2) derived from a Digital Elevation Model (A0). Panel B shows the result of applying Areal Interpolation (B1), Dasymetric Mapping (B2), Pycnophylactic Interpolation (B3) and combined Pycnophylactic-Dasymetric Interpolation (B4) to input runoff data (B0).](http://markokallio.fi/modsim_fig1_density.png)
-
+![Figure 1. Conceptual presentation of the areal interpolation methods and their result. Panel A presents the catchment areas (A1) and ancillary variable (A2) derived from a Digital Elevation Model (A0). Panel B shows the result of applying Areal Interpolation (B1), Dasymetric Mapping (B2), Pycnophylactic Interpolation (B3) and combined Pycnophylactic-Dasymetric Interpolation (B4) to input runoff data (B0).](http://markokallio.fi/modsim_fig1_density.png){ width=100% }
 
 ### Area Weighted Interpolation
 
 Hydrostreamer implements several different areal interpolation methods, all of which can be accessed using the **interpolate_runoff** function. The simplest form implemented in hydrostreamer is Area Weighted Interpolation (AWI), which divides runoff from source zones to target river reaches .
 
-```{r}
-AWI <- interpolate_runoff(source_runoff, basins, riverID = "SEGMENT_ID")
+```{r interpolate_AWI}
+AWI <- interpolate_runoff(source_runoff, basins, riverID = "riverID")
 AWI
 ```
 
 The output contains the columns from basins, added with riverID and runoff timeseries converted to volume (cubic meters per second). 
 
-```{r}
+```{r mean_interpolate_AWI}
 AWI$runoff_ts$`56`
 
 AWI$mean_runoff <- sapply(AWI$runoff_ts, function(x) mean(x$LORA))
@@ -116,12 +150,12 @@ We can also refine the estimates using a dasymetric variable. Here I assume that
 
 In dasymetric mapping (DM), the output of area weighted interpolation is further refined by scaling it using an ancillary variable - in this case elevation.
 
-```{r}
+```{r dasymetric}
 elevation_values <- raster::extract(dem, basins)
 basins$elevation <- sapply(elevation_values, mean)
 
 DM <- interpolate_runoff(source_runoff, basins, dasymetric = "elevation",
-                         riverID = "SEGMENT_ID")
+                         riverID = "riverID")
 
 DM$mean_runoff <- sapply(DM$runoff_ts, function(x) mean(x$LORA))
 plot(DM[,"mean_runoff"])
@@ -132,13 +166,13 @@ plot(DM[,"mean_runoff"])
 
 A third possibility is to use Pycnophylactic Interpolation (PP).
 
-```{r}
+```{r pycnophylactic}
 source_runoff$mean_runoff <- sapply(source_runoff$runoff_ts, function(x) {
   mean(x$LORA)
 })
 
 PP <- interpolate_runoff(source_runoff, basins, pycnophylactic = "mean_runoff",
-                         riverID = "SEGMENT_ID")
+                         riverID = "riverID")
 
 PP$mean_runoff <- sapply(PP$runoff_ts, function(x) mean(x$LORA))
 plot(PP[,"mean_runoff"])
@@ -150,11 +184,11 @@ plot(PP[,"mean_runoff"])
 The fourth option is to use a combination of PP and DM. In this case, PP is first performed instead of AWI, followed by the same scaling process with the 
 dasymetric variable. 
 
-```{r}
+```{r pycnophylactic_dasymetric}
 PPDM <- interpolate_runoff(source_runoff, basins, 
                          dasymetric = "elevation",
                          pycnophylactic = "mean_runoff",
-                         riverID = "SEGMENT_ID")
+                         riverID = "riverID")
 PPDM$mean_runoff <- sapply(PPDM$runoff_ts, function(x) mean(x$LORA))
 plot(PPDM[,"mean_runoff"])
 ```
@@ -165,19 +199,19 @@ plot(PPDM[,"mean_runoff"])
 
 All of the above examples are using catchment areas as the target units where runoff is estimated. However, existing vector-based river network data may not come specified with the DEM they were created with, or the processing steps are not clearly defined. In such cases, delineating the catchment areas for each segment may be difficult or outright impossible. For such cases, hydrostreamer provides the possibility to do interpolation from the source areas to linestrings. In such case, interpolation is based on the length of the linestring instead of the polygon area.
 
-```{r}
+```{r interpolate_A2L}
 A2L <- interpolate_runoff(source_runoff, river,
-                          riverID = "SEGMENT_ID")
+                          riverID = "riverID")
 
 A2L$mean_runoff <- sapply(A2L$runoff_ts, function(x) mean(x$LORA))
 plot(A2L[,"mean_runoff"])
 
 # DASYMETRIC MAPPING WITH LINES
-river <- dplyr::filter(river, SEGMENT_ID %in% basins$SEGMENT_ID) %>% 
+river <- dplyr::filter(river, riverID %in% basins$riverID) %>% 
   dplyr::mutate(elevation = basins$elevation)
 A2LDM <- interpolate_runoff(source_runoff, river,
                             dasymetric = "elevation",
-                          riverID = "SEGMENT_ID")
+                          riverID = "riverID")
 
 A2LDM$mean_runoff <- sapply(A2LDM$runoff_ts, function(x) mean(x$LORA))
 plot(A2LDM[,"mean_runoff"])
@@ -190,11 +224,11 @@ plot(A2LDM[,"mean_runoff"])
 
 The last example shown here is using both linestrings, and their respective catchment areas. The advantage here is that we can represent the rivers as they are in the network - as connected lines - and still use the catchment areas as a more accurate representation of the runoff produced in the catchment of the segment. In addition, using the lines allows us to use the constant river routing algorithm in the next step instead of only instantaneous routing. 
 
-```{r}
+```{r interpolate_mean_runoff}
 RB <- interpolate_runoff(source_runoff,
                          river,
                          basins = basins,
-                         riverID = "SEGMENT_ID")
+                         riverID = "riverID")
 
 RB$mean_runoff <- sapply(RB$runoff_ts, function(x) mean(x$LORA))
 plot(RB[,"mean_runoff"])
@@ -213,8 +247,8 @@ However, we cannot use the catchments-only downscaled runoff here directly becau
 
 Note that running *river_network()* is not explicitly necessary, since the routing algorithm does it automatically if it has not been run in advance.
 
-```{r}
-routed_river <- river_network(river, riverID = "SEGMENT_ID")
+```{r route_river}
+routed_river <- river_network(river, riverID = "riverID")
 routed_river
 
 PPDM$NEXT <- routed_river$NEXT
@@ -224,18 +258,37 @@ PPDM$UP_SEGMENTS <- routed_river$UP_SEGMENTS
 ```
 
 
-```{r message=FALSE, warning=FALSE}
+```{r discharge_estimate}
 catchment_discharge <- accumulate_runoff(PPDM, routing_method = "instant")
 river_discharge <- accumulate_runoff(RB, routing_method = "instant")
 
+river_discharge$mean_discharge <-
+    sapply(river_discharge$discharge_ts, function(x) {
+        # filter may june
+        x$month = lubridate::month(x$Date)# %>%
+        mean_discharge = mean(x$LORA[(x$month %in% c(5, 6))])
+        return(mean_discharge)
+    })
+
 river_discharge
+
+library(ggplot2)
+# https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
+river_discharge %>%
+    ggplot() +
+    geom_sf(aes(geometry = geom, col = mean_discharge)) +
+    scale_color_gradient(name = "Discharge (m3/s)",
+                         low = "#bdd7e7",
+                         high = "#08519c") +
+    labs(title = "mean discharge (May-June)") +
+    theme_bw()
 ```
 
 The algorithm adds a new list column discharge_ts, containing the routed discharge estimates.
 
 We can also plot the estimated discharge from the two approaches at segment 200 by accessing the new list column *discharge_ts*. 
 
-```{r}
+```{r plot_discharge_ts}
 plot(catchment_discharge$discharge_ts$`200`, type = 'l')
 lines(river_discharge$discharge_ts$`200`, col='red')
 title(main = "PPDM discharge in black, and Area-to-Line discharge in red.",

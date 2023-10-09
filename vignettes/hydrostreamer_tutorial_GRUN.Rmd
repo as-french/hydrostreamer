@@ -13,18 +13,19 @@ editor_options:
 
 ```{r setup, include = FALSE}
 
-# install version 1.0.1
-#remotes::install_github("mkkallio/hydrostreamer")
+# install version 1.0.1 for comaprison of
+# hydrostreamer::accumulate_runoff(routing_method = "instant") with river Shannon data
+# remotes::install_github("mkkallio/hydrostreamer")
 
 # Ensure that vignette can be built or is not evaluated if all Suggests are not
 # present (https://www.r-bloggers.com/2017/03/suggests-and-vignettes/)
 
-required <- c("exactextractr","terra","ggplot2","classInt")
+required <- c("exactextractr","terra","ggplot2","plotly")
 
 if (!all(unlist(lapply(required,
                        function(pkg)
                          requireNamespace(pkg, quietly = TRUE))))) {
-  knitr::opts_chunk$set(eval = FALSE)
+  knitr::opts_chunk$set(eval = TRUE)
 } else {
   knitr::opts_chunk$set(collapse = TRUE,
                         comment = "#>",
@@ -41,44 +42,37 @@ if (!all(unlist(lapply(required,
 # }
 ```
 
-This tutorial aims to explain the workflow in *hydrostreamer* and showcase some
+This tutorial aims to explain the workflow in `hydrostreamer` and showcase some
 of its capabilities in relation to GRUN runoff timeseries grid data for the
-river Shannon, Ireland. GRUN data were published under the CC By 4.0 license.
-These data could be substituted with modelled runoff using GR4J or similar to
-translate gridded ECMWF ERA5 reanlaysis (or SEAS5 seasonal forecast, or CMIP
-projections) precipitation (potential evapotranspiration dervied from surface
-temperature using the Hargreave's Samani method).
+river Shannon, Ireland. GRUN data were published under the CC By 4.0 license
+(Ghiggi et al 2019). These data could be substituted with modelled runoff using
+[`GR4J`](https://hydrogr.github.io/airGR/) or similar to translate gridded ECMWF
+ERA5 reanlaysis (or SEAS5 seasonal forecast, or CMIP projections) precipitation
+and evapotranspiration (or potential evapotranspiration derived from surface
+temperature using the Hargreaves-Samani method) into gridded runoff.
 
 # Using **hydrostreamer**
 
 Some example data have been included to the package for tutorial purposes. It
-includes
+includes:
 
-* ~45m resolution (~2.3arc second DEM) located in the west of Ireland. The DEM is originally Mapzen Terrain Tiles, accessed using *elevatr*.
+1. ~45m resolution (~2.3arc second) DEM located in the west of Ireland. The DEM is
+originally Mapzen Terrain Tiles, accessed using
+[`elevatr`](https://github.com/jhollist/elevatr/).
 
 ```{r shannon_dem}
 library(raster)
-#library(celestial)
+
 shannon_DEM = hydrostreamer::shannon_DEM
 raster::res(shannon_DEM) # 45m
 
-# in degrees
-#shannon_DEM_deg = shannon_DEM %>%
-#    terra::rast() %>%
-#    terra::project("EPSG:4326")
-#    res(shannon_DEM_deg) # 0.0006399219
-
-# celestial::deg2dms(deg = res(shannon_DEM_deg))
-# DEG   MIN  SEC    
-# "+00" "00" "02.30"
-#NOTE used shannon_DEM = shannon_DEM * 1 then usethis::use_data to commit raster
-#to memory before exporting into R package. This way 8mb raster does not need to
-#be stored in extdata, just smaller rda file in /data/.
 plot(shannon_DEM)
 plot((sf::st_union(hydrostreamer::shannon_subcatchments)), add = TRUE)
 ```
 
-* ~40km resolution (~0.6 degree) runoff timeseries in the same area as the DEM. Runoff is sourced from GRUN. The unit of runoff is mm/day, and are provided with a monthly timestep.
+2. ~0.5 degree runoff timeseries in the same area as the DEM. Runoff is sourced
+from GRUN. The unit of runoff is mm/day, and are provided with a monthly
+timestep.
 
 ```{r shannon_GRUN}
 library(raster)
@@ -91,7 +85,21 @@ plot((sf::st_union(hydrostreamer::shannon_subcatchments) %>%
           sf::st_transform("EPSG:4326")), add = TRUE)
 ```
 
-* A river network derived from the provided DEM with 729 river segments.
+3. A digital river network of the river Shannon in Ireland, derived from
+[EU-Hydro](https://land.copernicus.eu/en/products/eu-hydro?tab=main) with 2206
+river segments. This river network can be represented by a directed acyclic
+graph which contains distributaries/braids/islands. This network contains
+[*"multiple
+edges"*](https://igraph.org/r/doc/simplify.html#:~:text=Two%20edges%20are%20multiple%20edges,multiple%20edges%20from%20a%20graph)
+and can therefore not be classified as a simple dendritic graph. One purpose of
+this document is to demonstrate the capabilities of hydrostreamer for routing
+discharge through this type of network. Currently, only
+`hydrostreamer::accumulate_runoff(routing_method = "instant")` will work with
+this type of network complexity. The function has been adapted to simply divide
+the total upstream discharge of (for example) a distributary by the number of
+immediate downstream edges/reaches, thereby each receives identical routed
+discharge (e.g., 1/2 discharge of the upstream edge if there are two downstream
+edges).
 
 ```{r eu_hydro_shannon}
 library(sf)
@@ -100,7 +108,9 @@ plot(shannon_rivers$geom)
 plot((sf::st_union(hydrostreamer::shannon_subcatchments)), add = TRUE)
 ```
 
-* River segment specific catchment areas, delineated from the provided DEM. Catchments are provided for all (n = 729) of the river segments.
+4. River segment specific catchment areas, delineated using
+`hydrostreamer::river_voronoi`. Catchments are provided for all (n = 2206) of
+the river segments.
 
 ```{r shannon_catchments}
 library(sf)
@@ -126,7 +136,7 @@ plot((shannon_rivers %>% sf::st_transform("EPSG:4326")), add=TRUE,lwd = .5)
 
 plot(shannon_DEM)
 plot(shannon_subcatchments$geom, add=TRUE, lwd = .5)
-plot((shannon_rivers), add=TRUE, lwd = .5)
+plot((shannon_rivers$geom), add=TRUE, lwd = .5)
 ```
 
 
@@ -146,7 +156,8 @@ object with information about each raster cell. The runoff timeseries can be
 found in a named list column *runoff_ts*. The elements are named by the ID, and
 can be accessed with the '$' notation.
 
-We use **raster_to_HS** to convert a raster timeseries to a HS object.
+We use `hydrostreamer::raster_to_HS` to convert a raster timeseries to a HS
+object.
 
 ```{r raster_to_HS, message=FALSE, warning=FALSE}
 library(dplyr)
@@ -169,7 +180,8 @@ aoi.rproj <- aoi %>%
 crs(shannon_GRUN.rast) <- crs(aoi.rproj)
 
 #set nas to zero
-shannon_GRUN.rast.rcls <- raster::reclassify(hydrostreamer::shannon_GRUN, cbind(NA, 0))
+shannon_GRUN.rast.rcls <-
+    raster::reclassify(hydrostreamer::shannon_GRUN, cbind(NA, 0))
 
 # plot check spatial overlap
 plot(shannon_GRUN.rast.rcls$Runoff_1)
@@ -177,13 +189,16 @@ plot(sf::st_union(aoi.rproj), add = TRUE)
 
 # -------------------------------------------------------------------------- #
 # convert to HS object
-source_runoff <- hydrostreamer::raster_to_HS(rasters = shannon_GRUN.rast.rcls, 
-                       unit = "mm/day",
-                       date = lubridate::ymd(terra::time(r)[[1]]), 
-                       timestep = "month", 
-                       aoi = aoi.rproj,
-                       names = "GRUN",
-                       verbose = FALSE)
+source_runoff <-
+    hydrostreamer::raster_to_HS(
+        rasters = shannon_GRUN.rast.rcls,
+        unit = "mm/day",
+        date = lubridate::ymd(terra::time(r)[[1]]),
+        timestep = "month",
+        aoi = aoi.rproj,
+        names = "GRUN",
+        verbose = FALSE
+    )
 
 plot(source_runoff)
 ```
@@ -191,7 +206,7 @@ plot(source_runoff)
 Inspect runoff timeseries for individual grids. 
 
 ```{r plot_timeseries_runoff_grid_i}
-# access runoff timeseries of the element with ID `2` 
+# access runoff timeseries of the element with ID `1` 
 plot((source_runoff$runoff_ts$`1`$Date %>% as.Date()),
      source_runoff$runoff_ts$`1`$GRUN,
      type = "l",
@@ -202,7 +217,7 @@ plot((source_runoff$runoff_ts$`1`$Date %>% as.Date()),
 
 HS objects can also be created from an 'sf' (polygon) object and a runoff
 timeseries using function
-[create_HS](https://mkkallio.github.io/hydrostreamer/reference/create_HS.html).
+[`hydrostreamer::create_HS`](https://mkkallio.github.io/hydrostreamer/reference/create_HS.html).
 
 ## 2. Areal interpolation
 
@@ -262,9 +277,6 @@ plot((AWI$runoff_ts$`14970`$Date %>% as.Date()),
      ylab = "runoff (m3/s)"
 )
 
-#AWI$mean_runoff <- sapply(AWI$runoff_ts, function(x) mean(x$GRUN))
-#plot(AWI[,"mean_runoff"])
-
 # Filter time series to may june runoff before averaging. Could select flow from
 # percentiles, but might be unreliable if missing data. mean runoff is m3/s.
 AWI$mean_runoff <- sapply(AWI$runoff_ts, function(x){
@@ -291,10 +303,13 @@ library(dplyr)
 basins = hydrostreamer::shannon_subcatchments %>%
     sf::st_transform(sf::st_crs(shannon_DEM))
     
-elevation_values <- exactextractr::exact_extract(x = shannon_DEM,
-                                   y = basins,
-                                   fun = "mean",
-                                   append_cols = c("riverID"), progress = FALSE) %>%
+elevation_values <- exactextractr::exact_extract(
+    x = shannon_DEM,
+    y = basins,
+    fun = "mean",
+    append_cols = c("riverID"),
+    progress = FALSE
+) %>%
     dplyr::rename(elevation = mean)
 
 basins = basins %>%
@@ -302,16 +317,14 @@ basins = basins %>%
         sf::st_transform("EPSG:3035") %>%
         sf::st_set_crs("EPSG:3035")
 
-# check spatial overlap
-# need to transform back to original EPSG:3035 of basins. Otherwise vertices
-# become duplicates with transformation to WGS84 (EPSG:4326)).
-
-DM <- interpolate_runoff(HS = HS,
-                         river = rivers,
-                         basins = basins,
-                         dasymetric = "elevation",
-                         riverID = "riverID",
-                         verbose = FALSE)
+DM <- hydrostreamer::interpolate_runoff(
+    HS = HS,
+    river = rivers,
+    basins = basins,
+    dasymetric = "elevation",
+    riverID = "riverID",
+    verbose = FALSE
+)
 
 DM$mean_runoff <- sapply(DM$runoff_ts, function(x) mean(x$GRUN))
 plot(DM[,"mean_runoff"])
@@ -322,20 +335,23 @@ plot(DM[,"mean_runoff"])
 A third possibility is to use Pycnophylactic Interpolation (PP).
 
 ```{r downscalePP}
-source_runoff$mean_runoff <- sapply(source_runoff$runoff_ts, function(x) {
-  mean(x$GRUN)
-})
+source_runoff$mean_runoff <-
+    sapply(source_runoff$runoff_ts, function(x) {
+        mean(x$GRUN)
+    })
 
 HS = source_runoff %>% 
     sf::st_transform("EPSG:3035") %>%
     sf::st_set_crs("EPSG:3035")
 
-PP <- interpolate_runoff(HS = HS,
-                         river = rivers,
-                         basins = basins,
-                         pycnophylactic = "mean_runoff",
-                         riverID = "riverID",
-                         verbose = FALSE)
+PP <- hydrostreamer::interpolate_runoff(
+    HS = HS,
+    river = rivers,
+    basins = basins,
+    pycnophylactic = "mean_runoff",
+    riverID = "riverID",
+    verbose = FALSE
+)
 
 PP$mean_runoff <- sapply(PP$runoff_ts, function(x) mean(x$GRUN))
 plot(PP[,"mean_runoff"])
@@ -349,15 +365,18 @@ first performed instead of AWI, followed by the same scaling process with the
 dasymetric variable.
 
 ```{r downscale_PPDM}
-PPDM <- interpolate_runoff(HS = HS,
-                           river = rivers,
-                           basins = basins, 
-                         dasymetric = "elevation",
-                         pycnophylactic = "mean_runoff",
-                         riverID = "riverID",
-                         verbose = FALSE)
-PPDM$mean_runoff <- sapply(PPDM$runoff_ts, function(x) mean(x$GRUN))
-plot(PPDM[,"mean_runoff"])
+PPDM <- hydrostreamer::interpolate_runoff(
+    HS = HS,
+    river = rivers,
+    basins = basins,
+    dasymetric = "elevation",
+    pycnophylactic = "mean_runoff",
+    riverID = "riverID",
+    verbose = FALSE
+)
+PPDM$mean_runoff <- sapply(PPDM$runoff_ts, function(x)
+    mean(x$GRUN))
+plot(PPDM[, "mean_runoff"])
 ```
 
 
@@ -375,27 +394,32 @@ linestring instead of the polygon area.
 
 ```{r downscale_A2L}
 
-A2L <- interpolate_runoff(HS = HS,
-                          river = rivers,
-                          riverID = "riverID",
-                          verbose = FALSE)
+A2L <- hydrostreamer::interpolate_runoff(
+    HS = HS,
+    river = rivers,
+    riverID = "riverID",
+    verbose = FALSE
+)
 
-A2L$mean_runoff <- sapply(A2L$runoff_ts, function(x) mean(x$GRUN))
-plot(A2L[,"mean_runoff"])
+A2L$mean_runoff <- sapply(A2L$runoff_ts, function(x)
+    mean(x$GRUN))
+plot(A2L[, "mean_runoff"])
 
 # DASYMETRIC MAPPING WITH LINES
 
-A2LDM <- interpolate_runoff(HS = HS,
-                            river = rivers,
-                            dasymetric = "gmean_m",
-                          riverID = "riverID",
-                          verbose = FALSE)
+A2LDM <- hydrostreamer::interpolate_runoff(
+    HS = HS,
+    river = rivers,
+    dasymetric = "gmean_m",
+    riverID = "riverID",
+    verbose = FALSE
+)
 
-A2LDM$mean_runoff <- sapply(A2LDM$runoff_ts, function(x) mean(x$GRUN))
-plot(A2LDM[,"mean_runoff"])
+A2LDM$mean_runoff <-
+    sapply(A2LDM$runoff_ts, function(x)
+        mean(x$GRUN))
+plot(A2LDM[, "mean_runoff"])
 ```
-
-
 
 
 ### Using both lines and basins
@@ -408,15 +432,18 @@ segment. In addition, using the lines allows us to use the constant river
 routing algorithm in the next step instead of only instantaneous routing.
 
 ```{r downscale_RB}
-RB <- interpolate_runoff(HS = HS,
-                         river = rivers,
-                         dasymetric = "elevation",
-                         basins = basins,
-                         riverID = "riverID",
-                         verbose = FALSE)
+RB <- hydrostreamer::interpolate_runoff(
+    HS = HS,
+    river = rivers,
+    dasymetric = "elevation",
+    basins = basins,
+    riverID = "riverID",
+    verbose = FALSE
+)
 
-RB$mean_runoff <- sapply(RB$runoff_ts, function(x) mean(x$GRUN))
-plot(RB[,"mean_runoff"])
+RB$mean_runoff <- sapply(RB$runoff_ts, function(x)
+    mean(x$GRUN))
+plot(RB[, "mean_runoff"])
 ```
 
 ## 3. Apply river routing
@@ -442,10 +469,11 @@ routing algorithm does it automatically if it has not been run in advance.
 
 ```{r routing_amber_HS_compare}
 # # load river, add lookup information, collate all upstream segments
-system.time({
-    routed_river_hydrostreamer <-
-    river_network(hydrostreamer::shannon_rivers, riverID = "riverID", verbose = FALSE)
-})
+routed_river_hydrostreamer <-
+    river_network(hydrostreamer::shannon_rivers,
+                  riverID = "riverID",
+                  verbose = FALSE)
+
 
 # ----------------------------------------------------------------------- #
 
@@ -454,70 +482,108 @@ routed_river_hydrostreamer_NPID = routed_river_hydrostreamer %>%
     dplyr::select(riverID, NEXT, PREVIOUS, UP_SEGMENTS) %>%
     sf::st_drop_geometry()
 
-PPDM.join = dplyr::left_join(PPDM,routed_river_hydrostreamer_NPID, by = "riverID")
+PPDM.join = dplyr::left_join(PPDM,
+                             routed_river_hydrostreamer_NPID,
+                             by = "riverID")
 
-RB.join = dplyr::left_join(RB,routed_river_hydrostreamer_NPID, by = "riverID")
+RB.join = dplyr::left_join(RB,
+                           routed_river_hydrostreamer_NPID,
+                           by = "riverID")
 ```
 
 
 ```{r plot_routing1, message=FALSE, warning=FALSE}
 catchment_discharge <-
-    hydrostreamer::accumulate_runoff(PPDM.join, routing_method = "instant", verbose = FALSE)
-river_discharge <- hydrostreamer::accumulate_runoff(RB.join, routing_method = "instant", verbose = FALSE)
+    hydrostreamer::accumulate_runoff(PPDM.join,
+                                     routing_method = "instant",
+                                     verbose = FALSE)
+river_discharge <-
+    hydrostreamer::accumulate_runoff(RB.join,
+                                     routing_method = "instant",
+                                     verbose = FALSE)
 
 #catchment_discharge$mean_discharge <- sapply(catchment_discharge$discharge_ts, function(x) mean(x$GRUN))
-catchment_discharge$mean_discharge <- sapply(catchment_discharge$discharge_ts, function(x){
-  # filter may june
-  x$month = lubridate::month(x$Date)# %>%
-  mean_discharge = mean(x$GRUN[(x$month %in% c(5,6))])
-  return(mean_discharge)
-})
+catchment_discharge$mean_discharge <-
+    sapply(catchment_discharge$discharge_ts, function(x) {
+        # filter may june
+        x$month = lubridate::month(x$Date)# %>%
+        mean_discharge = mean(x$GRUN[(x$month %in% c(5, 6))])
+        return(mean_discharge)
+    })
 
 #river_discharge$mean_discharge <- sapply(river_discharge$discharge_ts, function(x) mean(x$GRUN))
 
-river_discharge$mean_discharge <- sapply(river_discharge$discharge_ts, function(x){
-  # filter may june
-  x$month = lubridate::month(x$Date)# %>%
-  mean_discharge = mean(x$GRUN[(x$month %in% c(5,6))])
-  return(mean_discharge)
-})
+river_discharge$mean_discharge <-
+    sapply(river_discharge$discharge_ts, function(x) {
+        # filter may june
+        x$month = lubridate::month(x$Date)# %>%
+        mean_discharge = mean(x$GRUN[(x$month %in% c(5, 6))])
+        return(mean_discharge)
+    })
 
 library(ggplot2)
-my_breaks = quantile(river_discharge$mean_discharge, c(0,0.1,0.2,0.4,0.8,1))
-
-my_breaks <-
-    classInt::classIntervals(river_discharge$mean_discharge,
-                             n = 5,
-                             style = "fisher")$brks
-
+#library(plotly)
 # https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
-river_discharge %>%
-ggplot() +
+p1 <- river_discharge %>%
+    ggplot() +
     geom_sf(aes(geometry = geom, col = mean_discharge)) +
-#    scale_colour_viridis_c(name = "Discharge",guide = "legend",
-#                           breaks = my_breaks, labels = my_breaks) +
     scale_color_gradient(name = "Discharge (m3/s)",
-                         low = "#bdd7e7",high = "#08519c")+
+                         low = "#bdd7e7",
+                         high = "#08519c") +
     theme_bw()
+
+# overall plot
+p1
+
+# to zoom in and check discharge distribution at braids/distributaries/islands
+#plotly::ggplotly(p1)
 
 ```
 
-The algorithm adds a new list column discharge_ts, containing the routed discharge estimates.
+The algorithm adds a new list column discharge_ts, containing the routed
+discharge estimates.
 
-We can also plot the estimated discharge from the two approaches at segment 200 by accessing the new list column *discharge_ts*. 
+We can also plot the estimated discharge from the two approaches at segment
+riverID 14970 by accessing the new list column *discharge_ts*.
 
 ```{r plot_routing2}
 plot(catchment_discharge$discharge_ts$`14970`, type = 'l')
-lines(river_discharge$discharge_ts$`14970`, col='red')
+lines(river_discharge$discharge_ts$`14970`, col = 'red')
 title(main = "PPDM discharge in black, and Area-to-Line discharge in red.",
-      sub = "Unit = m3/s, riverID = `200`")
+      sub = "Unit = m3/s, riverID = `14970`")
 ```
 
-As seen from the plots, in this catchment the difference between PPDM and Area-to-Line Interpolation is very small. In fact, we've found that as the basin size increases, the difference becomes increasingly small. This is particularly true for discharge at a monthly timestep. Larger difference can be expected with a daily timestep and with constant flow velocity routing.
+As seen from the plots, in this catchment the difference between PPDM and
+Area-to-Line Interpolation is very small. In fact, we've found that as the basin
+size increases, the difference becomes increasingly small. This is particularly
+true for discharge at a monthly timestep. Larger difference can be expected with
+a daily timestep and with constant flow velocity routing.
 
+## Footnote on caveats and future possibilities
+
+Note that the Shannon catchment contains large lakes and multiple in-river
+structures that influence the flow regime, including large flow-altering
+hydroelectric structures. The aim of this example was simply to demonstrate
+package functionality for a braided river network; it was not to estimate
+accurate discharges at high temporal resolution. Nevertheless, the above
+temporally aggregated estimates of discharge calculated at reach resolution
+might be useful for estimating river geometries (e.g., widths and depths) from
+approximate relationships (e.g., Manning's equation), which could be useful for
+estimating habitat availability (e.g., for diadromous fishes). Possible future
+work might include: (i) comparison and statistical bias adjustment of reach
+scale estimates against gauge data; (ii) routing discharge at higher temporal
+resolution and with different routing algorithms.
 
 ## References
 
-T. Tadono, H. Ishida, F. Oda, S. Naito, K. Minakawa, H. Iwamoto : Precise Global DEM Generation By ALOS PRISM, ISPRS Annals of the Photogrammetry, Remote Sensing and Spatial Information Sciences, Vol.II-4, pp.71-76, 2014. 
+T. Tadono, H. Ishida, F. Oda, S. Naito, K. Minakawa, H. Iwamoto : Precise Global
+DEM Generation By ALOS PRISM, ISPRS Annals of the Photogrammetry, Remote Sensing
+and Spatial Information Sciences, Vol.II-4, pp.71-76, 2014.
 
-Hobeichi, S., Abramowitz, G., Evans, J., and Beck, H. E.: Linear Optimal Runoff Aggregate (LORA): a global gridded synthesis runoff product, Hydrol. Earth Syst. Sci., 23, 851-870, https://doi.org/10.5194/hess-23-851-2019, 2019.
+Hobeichi, S., Abramowitz, G., Evans, J., and Beck, H. E.: Linear Optimal Runoff
+Aggregate (LORA): a global gridded synthesis runoff product, Hydrol. Earth Syst.
+Sci., 23, 851-870, https://doi.org/10.5194/hess-23-851-2019, 2019.
+
+Ghiggi, G., Humphrey, V., Seneviratne, S. I., and Gudmundsson, L.: GRUN: an
+observation-based global gridded runoff dataset from 1902 to 2014, Earth Syst.
+Sci. Data, 11, 1655–1674, https://doi.org/10.5194/essd-11-1655-2019, 2019.
