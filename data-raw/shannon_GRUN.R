@@ -1,5 +1,4 @@
 ## code to prepare `shannon_GRUN` dataset
-library(rgdal)
 library(terra)
 library(sf)
 library(raster)
