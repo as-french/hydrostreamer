@@ -120,7 +120,7 @@ plot(shannon_subcatchments$geom)
 
 Let's first load the data and inspect it:
 
-```{r look_at_data, message=FALSE, warning=FALSE}
+```{r look_at_data}
 library(hydrostreamer)
 library(raster)
 library(lubridate)
@@ -159,7 +159,7 @@ can be accessed with the '$' notation.
 We use `hydrostreamer::raster_to_HS` to convert a raster timeseries to a HS
 object.
 
-```{r raster_to_HS, message=FALSE, warning=FALSE}
+```{r raster_to_HS}
 library(dplyr)
 library(terra)
 library(raster)
@@ -492,7 +492,7 @@ RB.join = dplyr::left_join(RB,
 ```
 
 
-```{r plot_routing1, message=FALSE, warning=FALSE}
+```{r plot_routing1}
 catchment_discharge <-
     hydrostreamer::accumulate_runoff(PPDM.join,
                                      routing_method = "instant",
@@ -530,6 +530,7 @@ p1 <- river_discharge %>%
     scale_color_gradient(name = "Discharge (m3/s)",
                          low = "#bdd7e7",
                          high = "#08519c") +
+    labs(title = "mean discharge (May-June)") +
     theme_bw()
 
 # overall plot

@@ -46,7 +46,7 @@ Some example data have been included to the package for tutorial purposes. It in
 
 Let's first load the data and inspect it:
 
-```{r inspect_data, message=FALSE, warning=FALSE}
+```{r inspect_data}
 library(hydrostreamer)
 library(raster)
 library(lubridate)
@@ -56,28 +56,27 @@ library(sf)
 # fixes problem that results later with message similar to "Loop 0 is not valid:
 # Edge 70 is degenerate (duplicate vertex)"
 # see https://github.com/r-spatial/sf/issues/1762
-sf::sf_use_s2(FALSE)
+sf::sf_use_s2(use_s2 = FALSE)
 
 # basins
-data(example_basins)
-st_crs(basins) <- st_crs(basins) # see https://github.com/r-spatial/sf/issues/1811
-basins <- basins %>%
+basins_data <- hydrostreamer::basins_data
+basins <- basins_data %>%
     sf::st_set_crs("EPSG:4326") %>%
      dplyr::rename(riverID = SEGMENT_ID)
 
 plot(basins$geom, col = "lightgreen")
 
 # rivers
-data(example_rivers)
-st_crs(river) <- st_crs(river) # see https://github.com/r-spatial/sf/issues/1811
-river <- river %>%
+river_data <- hydrostreamer::river_data
+river <- river_data %>%
     dplyr::rename(riverID = SEGMENT_ID) %>%
     sf::st_set_crs("EPSG:4326")
 
 plot(river$geom, add = TRUE, col = "blue")
 
-runoff <- brick(system.file("extdata", "runoff.tif", package = "hydrostreamer"))
-dem <- brick(system.file("extdata", "dem.tif", package = "hydrostreamer")) 
+runoff <- hydrostreamer::runoff_data
+
+dem <- hydrostreamer::dem_data
 
 plot(runoff[[1]]) 
 plot((st_union(basins)), add=TRUE)
@@ -103,7 +102,7 @@ The raster layers are converted to polygons in order to do all the computations 
 
 We use **raster_to_HS** to convert a raster timeseries to a HS object.
 
-```{r convert_to_HS, message=FALSE, warning=FALSE}
+```{r convert_to_HS}
 source_runoff <- raster_to_HS(runoff, 
                        unit = "mm/s",
                        date = ymd("1980-01-01"), 
