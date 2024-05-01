@@ -41,6 +41,6 @@ Returns a \code{HS} object with columns
 }
 \description{
 Creates a \code{HS} from input where \code{grid} is a polygon grid
-representing the spatial units of runoff, and /code{runoff} is a data.frame
+representing the spatial units of runoff, and \code{runoff} is a data.frame
 containing column 'Date', and where column names match the grid IDs.
 }
