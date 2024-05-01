@@ -20,7 +20,7 @@ Depends:
 Encoding: UTF-8
 Imports:
     dplyr,
-    hydroGOF (>= 0.4.0),
+    hydroGOF,
     geosphere,
     methods,
     tibble,
@@ -33,10 +33,10 @@ Imports:
     stats,
     units,
     rlang,
-    Rcpp (>= 1.0.3),
-    sf (>= 0.8.0),
+    Rcpp,
+    sf,
     purrr,
-    hydroTSM (>= 0.6.26)
+    hydroTSM
 Suggests:
     knitr,
     rmarkdown,
@@ -57,7 +57,4 @@ License: MIT + file LICENSE
 URL: https://mkkallio.github.io/hydrostreamer/
 BugReports: https://github.com/mkkallio/hydrostreamer/issues
 VignetteBuilder: knitr
-RoxygenNote: 7.2.3
-Remotes:  
-    github::hzambran/hydroGOF,
-    github::hzambran/hydroTSM
+RoxygenNote: 7.3.1
