@@ -20,7 +20,7 @@ editor_options:
 # Ensure that vignette can be built or is not evaluated if all Suggests are not
 # present (https://www.r-bloggers.com/2017/03/suggests-and-vignettes/)
 
-required <- c("exactextractr","terra","ggplot2","plotly")
+required <- c("exactextractr","terra","ggplot2","lwgeom","RSAGA", "plotly")
 
 if (!all(unlist(lapply(required,
                        function(pkg)

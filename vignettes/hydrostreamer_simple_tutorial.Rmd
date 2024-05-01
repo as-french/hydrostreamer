@@ -14,7 +14,7 @@ editor_options:
 ```{r setup, include = FALSE}
 # Ensure that vignette can be built or is not evaluated if all Suggests are not
 # present (https://www.r-bloggers.com/2017/03/suggests-and-vignettes/)
-required <- c("ggplot2")
+required <- c("ggplot2","lwgeom","exactextractr","RSAGA")
 
 if (!all(unlist(lapply(required,
                        function(pkg)
