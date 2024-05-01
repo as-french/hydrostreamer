@@ -251,10 +251,23 @@ collect_listc <- function(ts, acc = FALSE) {
     Date <- NULL
     
     unit <- units::deparse_unit(dplyr::pull(ts[[1]],2)) 
-    unidates <- lapply(ts, function(x) x$Date) %>%
-        unlist %>%
-        unique %>%
-        lubridate::as_date()
+    
+    if(lubridate::is.Date(ts[[1]]$Date[[1]])){
+        
+        unidates <- lapply(ts, function(x) x$Date) %>%
+            unlist %>%
+            unique %>%
+            lubridate::as_date()
+    }
+    
+    if(lubridate::is.POSIXct(ts[[1]]$Date[[1]])){
+        
+        unidates <- lapply(ts, function(x) x$Date) %>%
+            unlist %>%
+            unique %>%
+            as.POSIXct()
+    }
+    
     names <- colnames(ts[[1]])[-1]
     nts <- length(ts)
     #n <- ncol(ts[[1]])-1

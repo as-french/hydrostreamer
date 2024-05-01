@@ -83,7 +83,7 @@ downscale_with_weights <- function(HSweights,
     nriv <- NROW(river)
     nseg <- NROW(weights)
     ng <- NROW(grid)
-
+    
     rIDs <- dplyr::pull(river, riverID)
     gIDs <- dplyr::pull(grid, zoneID)
     wrIDs <- dplyr::pull(weights, riverID) %>%
@@ -93,14 +93,25 @@ downscale_with_weights <- function(HSweights,
     weightvec <- dplyr::pull(weights, weights)
     
     gridareas <- sf::st_area(grid) %>% units::set_units("m2")
-        
+    
     
     runoff_ts <- collect_listc(grid$runoff_ts)
     ngrids <- length(runoff_ts)
-    unidates <- lapply(grid$runoff_ts, function(x) x$Date) %>%
-        unlist %>%
-        unique %>%
-        lubridate::as_date()
+    
+    if(lubridate::is.Date(grid$runoff_ts[[1]]$Date[[1]])){
+        unidates <- lapply(grid$runoff_ts, function(x) x$Date) %>%
+            unlist %>%
+            unique %>%
+            lubridate::as_date()
+    }
+    
+    if(lubridate::is.POSIXct(grid$runoff_ts[[1]]$Date[[1]])){
+        
+        unidates <- lapply(grid$runoff_ts, function(x) x$Date) %>%
+            unlist %>%
+            unique %>%
+            as.POSIXct()
+    }
     
     total <- ngrids
     if (verbose) pb <- txtProgressBar(min = 0, max = total, style = 3)
@@ -135,7 +146,7 @@ downscale_with_weights <- function(HSweights,
                 weightvec[seg] *
                 runoffTS[, wgIDs[seg] ]
         }
-
+        
         QTS <- units::set_units(QTS, "m3/s")
         QTS <- dplyr::as_tibble(QTS, .name_repair = "minimal")
         colnames(QTS) <- rIDs

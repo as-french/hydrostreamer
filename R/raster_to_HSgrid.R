@@ -32,7 +32,8 @@ raster_to_HS <- function(rasters,
     . <- NULL
     Date <- NULL
     zoneID <- NULL
-    #date_origin = as.Date(as.character(date))
+    
+
     # -------------------------------------------------------------------------
     # TEST
     
@@ -59,10 +60,10 @@ raster_to_HS <- function(rasters,
     test <- length(date) == 1 && is.null(timestep)
     if(test) stop("Please provide timestep")
     
-    test <- length(date) == 1 && class(date) != "Date"
-    if(test) stop("date input should be a 'Date' object (use e.g. 
-                  date('2000/01/01') ), or a vector of dates with 
-                  length equal to number of timesteps in runoff")
+    # test <- length(date) == 1 && class(date) != "Date"
+    # if(test) stop("date input should be a 'Date' object (use e.g. 
+    #                 date('2000/01/01') ), or a vector of dates with 
+    #                 length equal to number of timesteps in runoff")
     
     test <- !is.list(date) && length(date) == 1
     if(test) date <- as.list(rep(date, length(rasters)))
@@ -73,8 +74,8 @@ raster_to_HS <- function(rasters,
     test <- length(date) == length(rasters)
     if(!test) stop("length(date) != length(rasters)")
     
-    test <- !is.null(timestep) && !timestep %in% c("day","month")
-    if(test) stop("Only 'day' or 'month' currently timesteps supported.")
+    test <- !is.null(timestep) && !timestep %in% c("hour","day","month")
+    if(test) stop("Only 'hour', 'day' or 'month' currently timesteps supported.")
     
     # test names
     nrasters <- length(rasters)
@@ -121,7 +122,7 @@ raster_to_HS <- function(rasters,
                 aoi <- sf::st_as_sf(aoi)
             } else {
                 stop("Input area of interest should be an object of spatial",
-                    " class from either 'sf' or 'sp' packages")
+                     " class from either 'sf' or 'sp' packages")
             }
         }
         
@@ -134,7 +135,6 @@ raster_to_HS <- function(rasters,
             grid <- suppressWarnings(
                 suppressMessages(
                     methods::as(grid, "sf") %>%
-                        sf::st_set_crs(paste0("EPSG:",sf::st_crs(aoi)$epsg)) %>%
                         sf::st_intersection(., sf::st_union(aoi))
                 )
             )
@@ -163,11 +163,11 @@ raster_to_HS <- function(rasters,
             if(timestep == "month") {
                 enddate <- dates %m+% months(raster::nlayers(raster) -1)
             } else if(timestep == "day") {
-                enddate <- dates %m+% 
-                             lubridate::days(raster::nlayers(raster) -1)
+                enddate <- dates %m+%
+                    lubridate::days(raster::nlayers(raster) -1)
             } else if(timestep == "hour") {
                 enddate <- dates %m+% 
-                             lubridate::hours(raster::nlayers(raster) -1)
+                    lubridate::hours(raster::nlayers(raster))
             }
             dates <- seq(dates, enddate, by = timestep)
         }  else {
@@ -176,7 +176,6 @@ raster_to_HS <- function(rasters,
                                  " number ",rast))
         }
         data$Date <- dates
-        #data$Date <- as.Date(as.character(dates),origin = date_origin)
         
         grid <-  dplyr::select(grid, zoneID)
         
@@ -185,11 +184,11 @@ raster_to_HS <- function(rasters,
         } else {
             add <- create_HS(grid, data, name = names[[rast]], unit = unit)
             output <- add_HS(output, add)
-         
+            
             
         }
         if (verbose) setTxtProgressBar(pb, rast)
-        }
+    }
     if(verbose) close(pb)
     
     
