@@ -57,4 +57,4 @@ License: MIT + file LICENSE
 URL: https://mkkallio.github.io/hydrostreamer/
 BugReports: https://github.com/mkkallio/hydrostreamer/issues
 VignetteBuilder: knitr
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2

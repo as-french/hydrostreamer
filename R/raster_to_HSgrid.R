@@ -166,8 +166,8 @@ raster_to_HS <- function(rasters,
                 enddate <- dates %m+%
                     lubridate::days(raster::nlayers(raster) -1)
             } else if(timestep == "hour") {
-                enddate <- dates %m+% 
-                    lubridate::hours(raster::nlayers(raster))
+                enddate <- dates %m+%
+                    lubridate::hours(raster::nlayers(raster) -1)
             }
             dates <- seq(dates, enddate, by = timestep)
         }  else {
