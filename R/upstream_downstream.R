@@ -127,6 +127,12 @@ downstream <- function(HSnetwork, ID, riverID = "riverID") {
     
     # visit all the river segments in visit list. Record their downstream segs,
     # until all downstream segments have been visited.
+    
+    # Note this does not work if the channel has been digitized with a pseudo
+    # node;e.g., three reaches with to most upstream flowing into a middle
+    # reach, which then flows into a downstream teach (i.e., there is no
+    # confluence).
+    
     visit <- visitlist[[1]]
     while(!is.null(visit)) {
         

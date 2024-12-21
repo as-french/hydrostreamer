@@ -36,7 +36,11 @@ Imports:
     Rcpp,
     sf,
     purrr,
-    hydroTSM
+    hydroTSM,
+    igraph,
+    sfnetworks,
+    fastmatch,
+    data.table
 Suggests:
     knitr,
     rmarkdown,
@@ -46,9 +50,11 @@ Suggests:
     testthat,
     exactextractr,
     terra,
+    tidyterra,
     ggplot2,
     classInt,
-    plotly
+    plotly,
+    qgisprocess
 LinkingTo: 
     Rcpp
 LazyData: true
