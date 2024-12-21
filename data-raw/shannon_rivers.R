@@ -9,8 +9,8 @@ dirName <- paste0(system.file("extdata", package = "hydrostreamer"),
                   "/shannon_rivers/")
 dir.create(dirName, showWarnings = TRUE, mode = "0777")
 
-# To do download link remote URL to attributes
-# To do download link remote URL to geometries
+# To do download link remote URL to attributes [TBC on Zenodo]
+# To do download link remote URL to geometries [TBC on Zenodo]
 
 # load vars to join
 sf_riv_net = geoarrow::read_geoparquet_sf(paste0(dirName,"amber_simplified_rivers_03_03_2023.parquet"))
@@ -25,12 +25,14 @@ sf_riv_net.att_join = dplyr::left_join(sf_riv_net,
 # filter to Shannon
 shannon_rivers = sf_riv_net.att_join %>%
     dplyr::filter(river_group == 1528) %>%
-    dplyr::select(riverID,river_group,region_id,lake_id,gmean_m,grad,geom)
+    dplyr::select("riverID","river_group","region_id","lake_id","elev_gmean_m","grad","UCA_km2","geom")
 
 # check classes
 class(shannon_rivers)
 apply(shannon_rivers,MARGIN = 2,function(x){class(x[[1]])})
 class(shannon_rivers$geom)
+
+st_crs(shannon_rivers)$wkt <- gsub("ü","\\u00fc", sf::st_crs(shannon_rivers)$wkt)
 
 # export
 usethis::use_data(shannon_rivers,overwrite = TRUE)

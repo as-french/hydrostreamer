@@ -1,10 +1,10 @@
-#' Simplified river network for the river Shannon, Ireland
+#' Simplified river network for the river Miera, Spain
 #'
 #' A simple feature dataset containing a subset of simplified EU-Hydro river
-#' network for the river Shannon, Ireland. This LINESTRING was simplified to 5%
+#' network for the river Miera, Spain. This LINESTRING was simplified to 5%
 #' original detail using the rmapshaper package, which preserves topologies.
 #'
-#' @format An sf object with 2206 rows and 8 variables:
+#' @format An sf object with 111 rows and 8 variables:
 #' \describe{
 #'   \item{riverID}{id for each river reach, a numeric}
 #'   \item{river_group}{id for each river group, a numeric}
@@ -18,4 +18,4 @@
 #' }
 #' @source \url{https://land.copernicus.eu/imagery-in-situ/eu-hydro/eu-hydro-river-network-database}
 #' @references \url{https://github.com/ateucher/rmapshaper}
-"shannon_rivers"
+"miera_rivers"
