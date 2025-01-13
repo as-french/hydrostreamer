@@ -32,7 +32,6 @@ Imports:
     Matrix,
     stats,
     units,
-    rlang,
     Rcpp,
     sf,
     purrr,
@@ -40,7 +39,9 @@ Imports:
     igraph,
     sfnetworks,
     fastmatch,
-    data.table
+    data.table,
+    geos,
+    rlang
 Suggests:
     knitr,
     rmarkdown,

@@ -381,7 +381,8 @@ system.time({
 
 
 # ---------------------------------------------------------------------------- #
-
+# HOURLY
+# ---------------------------------------------------------------------------- #
 
 # read as raster
 ERA5_Land_NC_runoff13 <- list(c(paste0(dirName,"surface_runoff_hourly_8dp_",
@@ -393,7 +394,7 @@ r <- terra::rast(ERA5_Land_NC_runoff13[[1]])
 #terra::time(r) # time here
 
 # ---------------------------------------------------------------------------- #
-# load subbasins to extract extent of GRUN in GRUN projection
+# load subbasins to extract extent of ERA5 in ERA5 projection
 subcatchments_region_i <- hydrostreamer::shannon_subcatchments %>%
     sf::st_cast("POLYGON") %>%
     sf::st_transform(crs = terra::crs(r)) %>%
@@ -437,3 +438,45 @@ shannon_ERA5_land <- raster::setZ(shannon_ERA5, times[,1], "Date")
 names(shannon_ERA5_land) <- times[,1]
 
 usethis::use_data(shannon_ERA5_land, overwrite = TRUE)
+
+# --------------------------------------------------------------------------- #
+# DAILY
+# --------------------------------------------------------------------------- #
+
+# aggregate to daily sum
+ERA5_land_times = data.frame("Date" = raster::getZ(hydrostreamer::miera_ERA5_land))
+
+r <- raster::stack(hydrostreamer::shannon_ERA5_land) %>%
+    terra::rast()
+
+terra::time(r) <- ERA5_land_times[,1]
+
+r_daily <- r %>%
+    terra::tapp(.,index = "days", fun = \(y){
+        sum(y, na.rm = TRUE)
+    })
+
+# load subbasins to extract extent of ERA5 in ERA5 projection
+subcatchments_region_i <- hydrostreamer::shannon_subcatchments %>%
+    sf::st_cast("POLYGON") %>%
+    sf::st_transform(crs = terra::crs(r_daily)) %>%
+    terra::vect()
+
+# subset dataset to variable of interest
+shannon_ERA5 <- r_daily[terra::varnames(r_daily)]
+
+# check spatial overlap
+plot(r_daily[[1]])
+plot(subcatchments_region_i, add = TRUE)
+
+shannon_ERA5_rast = raster::brick(shannon_ERA5)
+
+shannon_ERA5_land_daily = shannon_ERA5_rast * 1
+
+times <- data.frame("Date" = lubridate::as_datetime(terra::time(shannon_ERA5)))
+
+shannon_ERA5_land_daily <- raster::setZ(shannon_ERA5_land_daily, times[,1], "Date")
+
+names(shannon_ERA5_land_daily) <- times[,1]
+
+usethis::use_data(shannon_ERA5_land_daily, overwrite = TRUE)

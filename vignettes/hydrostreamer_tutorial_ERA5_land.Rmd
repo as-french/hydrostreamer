@@ -50,6 +50,7 @@ library(lubridate)
 library(units)
 library(ggplot2)
 library(exactextractr)
+# devtools::load_all(recompile = FALSE)
 
 ```
 
@@ -62,22 +63,28 @@ downscaling and routing methods (constant vs. instantaneous) and data temporal
 resolution (daily vs. hourly).
 
 The ECMWF ERA5-Land data included in this package pertain to the extent of the
-river Miera catchment in Spain and were published by Copernicus under
+river Miera catchment in Spain as below (and the Shannon catchment in Ireland
+for another example if desired) and were published by Copernicus under
 Regulation (EU) No 1159/2013. The license permits redistribution of data with
 attribution. Adhering to the license agreement terms, the sample data contained
 in `hydrostreamer` were generated using Copernicus Climate Change Service
 information (2024).
 
 An alternative runoff grid data sample, GRUN (Ghiggi et al 2019), is also
-contained in the package. GRUN data were published under the CC By 4.0 license
-and are provided at a monthly timestep.
+contained in the package convering the extent of the Shannon system. GRUN data
+were published under the CC By 4.0 license and are provided at a monthly
+timestep.
 
 The data sources included in the package can be substituted with modelled runoff
-using [`GR4J`](https://hydrogr.github.io/airGR/) or similar to translate gridded
-ECMWF ERA5 reanlaysis (or SEAS5 seasonal forecast, or CMIP projections)
-precipitation and evapotranspiration (or potential evapotranspiration derived
-from surface temperature using the Hargreaves-Samani method) into gridded
-runoff.
+, e.g., using [`GR4J/GR4H`](https://hydrogr.github.io/airGR/) or similar to
+translate gridded ECMWF ERA5 reanlaysis (or SEAS5 seasonal forecast, or CMIP
+projections) precipitation and evapotranspiration (or potential
+evapotranspiration derived from surface temperature using the Hargreaves-Samani
+method) into gridded runoff. Note however that this would require estimation of
+subcatchment specific GR model parameters; hence, the application of
+hydrostreamer to off-the-shelf climate data products. See data-raw folder of
+this package for climate data pre-processing steps (e.g., decumulation of runoff
+data).
 
 # Using **hydrostreamer**
 
@@ -102,14 +109,15 @@ plot((sf::st_union(hydrostreamer::miera_subcatchments)), add = TRUE)
 [EU-Hydro](https://land.copernicus.eu/en/products/eu-hydro?tab=main) with 111
 river segments. This river network can be represented by a directed acyclic
 graph. This network contains anabranching channels and can therefore not be
-classified as a "simple" dendritic acyclic graph. Another larger example dataset
+classified as a "simple" dendritic acyclic graph. A larger example dataset
 is provided for the river Shannon in Ireland, which contains several
 anabranching/multi-thread channels and two outlets.
 
 One purpose of this document is to demonstrate the capabilities of hydrostreamer
 for routing discharge through these types of "complex" river networks ("complex"
 directed acyclic graphs). Currently, only
-`hydrostreamer::accumulate_runoff(routing_method = "instant")` and
+`hydrostreamer::accumulate_runoff(routing_method = "instant")`,
+`hydrostreamer::accumulate_runoff_constant_complex()`
 `hydrostreamer::accumulate_runoff(routing_method = "constant")` will work with
 this type of network complexity. Each routing method works by dividing the total
 upstream discharge at a given time slice (for example) a single channel by the
@@ -134,7 +142,7 @@ plot(miera_subcatchments$geom)
 
 4. **Rainfall runoff grid data** downloaded from Copernicus Climate Data Store
 covering the extent of the Miera catchment. This dataset is hourly resolution
-and 9km grid resolution. Alternative sources of modeled runoff data include,
+and 9km grid resolution. Alternative sources of modelled runoff data include:
 interpolated global grid monthly-time step GRUN (Ghiggi et al 2019), and
 3-hourly-timestep Copernicus Emergency Management Service "River discharge and
 related historical data from the European Flood Awareness System" (JRC (2019);
@@ -157,7 +165,8 @@ plot(miera_subcatchments$geom, add=TRUE, lwd = .5)
 plot((miera_rivers$geom), add=TRUE, lwd = .5)
 ```
 
-This tutorial demonstrates the first two of *hydrostreamer*'s workflow:
+This tutorial demonstrates the first two of *hydrostreamer*'s workflow for
+hourly and daily time-steps:
 
 **1. Areal interpolation of runoff to explicit river segments**
 **2. Routing down the river network to estimate discharge**
@@ -281,22 +290,16 @@ plot(RB[, "mean_runoff"], main = "RB")
 
 While the runoff generated at each river segment is already useful for many
 applications, knowing river discharge is often also desirable. hydrostreamer
-provides two simple river routing algorithms for this purpose: **instantaneous**
-routing, useful for e.g. estimating runoff in the entire upstream catchment of
-each river segment, and **constant** flow velocity routing.
-
-Each routing method is accessible through the function *accumulate_runoff()*.
-Since the catchment provided here is small, and the timestep in runoff is one
-month, we'll just use instantaneous routing here. There would be negligible
-difference between constant velocity and instantaneous routing in this case.
+provides three river routing algorithms for this purpose:
+**instantaneous** routing, useful for e.g. estimating runoff in the entire
+upstream catchment of each river segment, **constant** flow velocity routing
+(demonstrated here), and **Muskingum-Cunge**, which is currently not implemented to
+work with multi-thread networks).
 
 However, we cannot use the catchments-only downscaled runoff here directly
 because there is no routing information. Since we can derive the routing
 information for the river lines, we can use that same routing info for the
-catchments also.
-
-Note that running *river_network()* is not explicitly necessary, since the
-routing algorithm does it automatically if it has not been run in advance.
+catchments.
 
 ```{r prepare_network_HS_hourly}
 # load river, add lookup information, collate all upstream segments
@@ -530,14 +533,16 @@ RB_join_prelim %>%
 
 In some cases, it is necessary to split reaches into smaller segments such that
 flow units are constrained to move from one reach to the next in a single
-timestep. In this case it is nearly all reaches that require splitting
+timestep. In this Miera catchment demonstration it is nearly all reaches that
+require splitting.
 
 Following identification of reaches that require splitting, the example below
 shows the use of the computationally efficient `qgisprocess` R package for
 splitting reaches. However, to reduce package dependencies, the `qgisprocess`
 method is presented below, but not evaluated for this vignette. Nevertheless,
 the split network output from this `qgisprocess` function is provided as
-`hydrostreamer::miera_rivers_split`.
+`hydrostreamer::miera_rivers_split`. See also data-raw folder for qgisprocess
+method.
 
 ```{r reduce_reach_length_for_hourly_constant_v_routing, eval = FALSE}
 
@@ -614,15 +619,15 @@ miera_rivers_split <- riv_net_to_split.split %>%
 ```
 
 It is necessary to recompute subcatchment geometries using
-hydrostreamer::river_voronoi and to rerun `hydrostreamer::river_network` prior
+`hydrostreamer::river_voronoi` and to rerun `hydrostreamer::river_network` prior
 to routing as a new riverID for each network edge will be generated, so new NEXT
-and PREVIOUS columns will need to be populated.
+and PREVIOUS list columns will need to be populated.
 
 ##### Regenerate attributes for subcatchments associated with split reaches
 
-For regenerating subcatchments, we can use the hydrostreamer::river_voronoi
-function. And elevation data can extracted from the packaged DEM and used for
-dasymetric mapping.
+For regenerating subcatchments, we can use `hydrostreamer::river_voronoi`. And
+elevation data can extracted from the packaged DEM and used for dasymetric
+mapping.
 
 ```{r derive_subcatchments_and_recompute_attributes_hourly}
 
@@ -684,7 +689,7 @@ plot(RB[, "mean_runoff"], main = "RB")
 
 ###### Prepare network for routing method
 
-The split river network requires NEXT and PREVIOUS columns.
+The split river network requires new NEXT and PREVIOUS columns.
 
 ```{r re_prepare_network_HS_hourly}
 # load river, add lookup information, collate all upstream segments
@@ -706,17 +711,67 @@ RB_join = dplyr::left_join(RB,
 
 ###### Route interpolated runoff through updated river network
 
+Two implementations of constant velocity routing are illustrated below. The
+first one is vastly more computationally efficient but requires a two-step
+process. The two step process is as follows: (i) we use
+`hydrostreamer::split_network_at_bifurcations` to spit the network into
+topologically ordered processing chunks; (ii) we use
+`hydrostreamer::accumulate_runoff_constant_complex()` to route runoff in
+topological sequence, i.e., upper catchment groups are routed first, and the
+accumulated discharge time series calculated at each of these subgroup outlets
+is then substituted into one or more of the upper reaches immediately downstream
+of the first subgroup topologically, and so on.
+
+The inefficent method does not split the network into topological groups.
+Instead, a call to `hydrostreamer::accumulate_runoff()` will route runoff from
+each reach through all possible downstream paths to outlets before averaging
+discharge estimates for each reach. As a result of the averaging, there are
+small differences in the results of this method vs. the computationally
+inefficient one, but either method might be considered appropriate for a small
+catchment that contains few bifurcations; hence our example for the Miera
+catchment, which contains only one bifurcation.
+
+Note, it is advisable to always use the efficient method and split the catchment
+into appropriate topological chunks. This is for two main reasons. First, the
+processing time will be excessive, and second, the method will fail due to
+insufficnet RAM. We provide example data for the Shannon catchment to
+demonstrate that even the efficent method will take ~50 minutes to run after
+having split the catchment into ~40 topologically ordered groups and a total of
+~25 000 reaches to facilitate constant velocity routing. It is not advisable to
+use instantaneous routing for hourly time steps, but may be appropriate for
+monthly, or daily in some instances.
+
 ```{r plot_constant_velocity_routing_split_reaches_hourly}
 
-river_discharge_constant <-
-    hydrostreamer::accumulate_runoff(
-        RB_join,
-        routing_method = "constant",
-        velocity = RB_join$Maidment_velocity_ms,
-        verbose = TRUE
-    )
+# higher computational efficiency method splitting into distinct topologically
+# ordered groups
+RB_join_updated <-  hydrostreamer::split_network_at_bifurcations(RB_join,
+    riverID = "riverID",
+    verbose = TRUE)
 
-river_discharge_constant$mean_discharge <- sapply(river_discharge_constant$discharge_ts, function(x)
+RB_join_updated %>%
+    ggplot()+
+    labs(title = "Catchment split into topologically ordered groups",
+        subtitle = "Constant velocity routing is applied sequentially to group 1, 2 and so on...") +
+    geom_sf(aes(geometry = geom, col = factor(river_group_new)))+
+    theme_bw()
+
+system.time({
+river_discharge_constant <- hydrostreamer::accumulate_runoff_constant_complex(
+    sf_river_network = RB_join_updated,
+    riverID = "riverID", 
+    runoff_var_name = "ERA5_land",
+    velocity_var_name = "Maidment_velocity_ms",
+    catchment_subgroup_var_name = "river_group_new",
+    verbose = TRUE
+)
+})
+# 50 seconds for 1 year of hourly time-step runoff for 832 river segments in
+# Miera on standard laptop (2.10 GHz processor)
+# ---------------------------------------------------------------------------- #
+
+river_discharge_constant$mean_discharge <- 
+    sapply(river_discharge_constant$discharge_ts, function(x)
     mean(x$ERA5_land))
 
 # https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
@@ -726,14 +781,34 @@ river_discharge_constant %>%
     scale_color_gradient(name = "Discharge (m3/s)",
                          low = "#bdd7e7",
                          high = "#08519c") +
-    labs(title = "Mean annual discharge",subtitle = "Routing method: Constant velocity") +
+    labs(title = "Mean annual discharge",
+         subtitle = "Routing method: Constant velocity") +
     theme_bw()
+
+# ---------------------------------------------------------------------------- #
+# NOTE low computational efficiency (and potentially incorrect) method, but will
+# work for complex rivers
+# system.time({
+# river_discharge_constant_slow <-
+#     hydrostreamer::accumulate_runoff(
+#         RB_join,
+#         routing_method = "constant",
+#         velocity = RB_join$Maidment_velocity_ms,
+#         verbose = TRUE
+#     ) %>%
+# sf::st_as_sf()
+# })
+# # 80 seconds
+# 
+# ---------------------------------------------------------------------------- #
 
 ```
 
 ```{r plot_constant_velocity_routing_time_series_hourly}
-# identify catchment outlet riverID
-outlet_riverID <- river_discharge_constant$riverID[which(unlist(river_discharge_constant$NEXT) == -9999)]
+outlet_riverID <- river_discharge_constant$riverID[which((sapply(river_discharge_constant$NEXT, function(x){
+    x[[1]] == -9999
+}) %>%
+    unlist()) == TRUE)]
 
 # old river id equiv
 outlet_old_riverID <- river_discharge_constant %>%
@@ -759,7 +834,8 @@ river_discharge_methods <- river_discharge_con %>%
 
 i <- 4
 
-month_list <- c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")
+month_list <- c("01", "02", "03", "04", "05", "06",
+                "07", "08", "09", "10", "11", "12")
 
 river_discharge_methods %>%
     dplyr::mutate("month" = lubridate::month(.data$Date)) %>%
@@ -772,24 +848,13 @@ river_discharge_methods %>%
 
 ```
 
-
 ## Workflow (Daily timestep)
 
 The following workflow is almost identical to the hourly method, but the runoff
-data are aggregated to daily timestep for comparison.
+data are aggregated to daily time-step for comparison. See data-raw for
+aggregation method using `terra::tapp`.
 
 ### 1. Converting raster runoff to a polygon network
-
-The raster layers are converted to polygons in order to do all the computations
-using only vector processing, and thus, each cell of the raster is polygonized,
-and if an area of interest is provided, the polygons are clipped to it. This
-removes any unneeded grid cells. The resulting **HS** object is a standard 'sf'
-object with information about each raster cell. The runoff timeseries can be
-found in a named list column *runoff_ts*. The elements are named by the ID, and
-can be accessed with the '$' notation.
-
-We use `hydrostreamer::raster_to_HS` to convert a raster timeseries to a HS
-object.
 
 ```{r raster_to_HS_daily}
 
@@ -830,8 +895,6 @@ source_runoff <-
 plot(source_runoff)
 ```
 
-Inspect runoff timeseries for individual grids. 
-
 ```{r plot_timeseries_runoff_grid_i_daily}
 # access runoff timeseries of the element with ID `1` 
 plot((source_runoff$runoff_ts$`1`$Date[1:365]),
@@ -844,18 +907,7 @@ plot((source_runoff$runoff_ts$`1`$Date[1:365]),
 
 ### 2. Areal interpolation
 
-The four areal interpolation methods are explained in more detail in the (2019)
-conference paper [here](https://mssanz.org.au/modsim2019/K8/kallio.pdf).
-However, for the purpose of this tutorial, we present only one interpolation
-method, Basin-to-reach dasymetric mapping adjusting for subcatchment areas.
-
 #### Basin-to-reach dasymetric mapping adjusting for subcatchment area and elevation
-
-This method represents the rivers as they are in the network - as connected
-lines - and still uses the catchment areas as a more accurate representation of
-the runoff produced in the catchment of the segment. In addition, using the
-lines allows us to use the constant river routing algorithm in the next step
-instead of only instantaneous routing.
 
 ```{r downscale_RB_daily}
 # check spatial overlap
@@ -886,25 +938,6 @@ plot(RB[, "mean_runoff"], main = "RB")
 ```
 
 ### 3. Apply river routing
-
-While the runoff generated at each river segment is already useful for many
-applications, knowing river discharge is often also desirable. hydrostreamer
-provides two simple river routing algorithms for this purpose: **instantaneous**
-routing, useful for e.g. estimating runoff in the entire upstream catchment of
-each river segment, and **constant** flow velocity routing.
-
-Each routing method is accessible through the function *accumulate_runoff()*.
-Since the catchment provided here is small, and the timestep in runoff is one
-month, we'll just use instantaneous routing here. There would be negligible
-difference between constant velocity and instantaneous routing in this case.
-
-However, we cannot use the catchments-only downscaled runoff here directly
-because there is no routing information. Since we can derive the routing
-information for the river lines, we can use that same routing info for the
-catchments also.
-
-Note that running *river_network()* is not explicitly necessary, since the
-routing algorithm does it automatically if it has not been run in advance.
 
 ```{r prepare_network_HS_daily}
 # load river, add lookup information, collate all upstream segments
@@ -951,9 +984,6 @@ river_discharge_instant %>%
 
 ```
 
-The algorithm adds a new list column discharge_ts, containing the routed
-discharge estimates.
-
 ```{r instantaneous_routed_discharge_ts_daily}
 # identify catchment outlet riverID
 outlet_riverID <- river_discharge_instant$riverID[which(unlist(river_discharge_instant$NEXT) == -9999)]
@@ -968,11 +998,6 @@ river_discharge_instant %>%
 ```
 
 #### Constant velocity routing
-
-To demonstrate constant velocity routing, the following example shows how to set
-up a velocity field for routing "packets/units" of discharge downstream
-through the network. This approach follows Maidment (1996) derivation of a
-velocity field adjusting for upstream catchment area and reach gradient.
 
 ##### Prepare reach attributes for routing
 
@@ -1127,18 +1152,7 @@ RB_join_prelim %>%
 
 ##### Reduce reach lengths where appropriate for routing daily data
 
-Similarly to hourly routing, in some cases, it is necessary to split reaches
-into smaller segments such that flow units are constrained to move from one
-reach to the next in a single timestep. In this case it is 6/111 reaches that
-require splitting, but we can use the same set of split reaches as used for the
-hourly time step runoff data. Here, we can again skip the `qgisprocess` method ,
-and use the pre-split netork `hydrostreamer::miera_rivers_split`.
-
 ##### Regenerate attributes for subcatchments associated with split reaches
-
-For regenerating subcatchments, we can use the hydrostreamer::river_voronoi
-function. And elevation data can extracted from the packaged DEM and used for
-dasymetric mapping.
 
 ```{r derive_subcatchments_and_recompute_attributes_daily}
 
@@ -1200,8 +1214,6 @@ plot(RB[, "mean_runoff"], main = "RB")
 
 ###### Prepare network for routing method
 
-The split river network requires NEXT and PREVIOUS columns.
-
 ```{r re_prepare_network_HS_daily}
 # load river, add lookup information, collate all upstream segments
 routed_miera_rivers_split_updated_hydrostreamer <-
@@ -1224,15 +1236,36 @@ RB_join = dplyr::left_join(RB,
 
 ```{r plot_constant_velocity_routing_split_reaches_daily}
 
-river_discharge_constant <-
-    hydrostreamer::accumulate_runoff(
-        RB_join,
-        routing_method = "constant",
-        velocity = RB_join$Maidment_velocity_ms,
-        verbose = TRUE
-    )
+# higher computational efficiency method splitting into distinct topologically
+# ordered groups
+RB_join_updated <-  hydrostreamer::split_network_at_bifurcations(RB_join,
+    riverID = "riverID",
+    verbose = TRUE)
 
-river_discharge_constant$mean_discharge <- sapply(river_discharge_constant$discharge_ts, function(x)
+RB_join_updated %>%
+    ggplot()+
+    labs(title = "Catchment split into topologically ordered groups",
+        subtitle = "Constant velocity routing is applied sequentially to group 1, 2 and so on...") +
+    geom_sf(aes(geometry = geom, col = factor(river_group_new)))+
+    theme_bw()
+
+system.time({
+river_discharge_constant <- hydrostreamer::accumulate_runoff_constant_complex(
+    sf_river_network = RB_join_updated,
+    riverID = "riverID", 
+    runoff_var_name = "ERA5_land",
+    velocity_var_name = "Maidment_velocity_ms",
+    catchment_subgroup_var_name = "river_group_new",
+    verbose = TRUE
+)
+})
+# 14 seconds for 1 year of daily time-step runoff for 832 river segments in
+# Miera on standard laptop (2.10 GHz processor)
+
+# ---------------------------------------------------------------------------- #
+
+river_discharge_constant$mean_discharge <- 
+    sapply(river_discharge_constant$discharge_ts, function(x)
     mean(x$ERA5_land))
 
 # https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
@@ -1242,14 +1275,34 @@ river_discharge_constant %>%
     scale_color_gradient(name = "Discharge (m3/s)",
                          low = "#bdd7e7",
                          high = "#08519c") +
-    labs(title = "Mean annual discharge",subtitle = "Routing method: Constant velocity") +
+    labs(title = "Mean annual discharge",
+         subtitle = "Routing method: Constant velocity") +
     theme_bw()
 
+# ---------------------------------------------------------------------------- #
+# NOTE low computational efficiency (and potentially incorrect) method, but will
+# work for complex rivers
+# system.time({
+# river_discharge_constant_slow <-
+#     hydrostreamer::accumulate_runoff(
+#         RB_join,
+#         routing_method = "constant",
+#         velocity = RB_join$Maidment_velocity_ms,
+#         verbose = TRUE
+#     ) %>%
+# sf::st_as_sf()
+# })
+# 22 seconds
+# 
+# ---------------------------------------------------------------------------- #
 ```
 
 ```{r plot_constant_velocity_routing_time_series_daily}
-# identify catchment outlet riverID
-outlet_riverID <- river_discharge_constant$riverID[which(unlist(river_discharge_constant$NEXT) == -9999)]
+
+outlet_riverID <- river_discharge_constant$riverID[which((sapply(river_discharge_constant$NEXT, function(x){
+    x[[1]] == -9999
+}) %>%
+    unlist()) == TRUE)]
 
 # old river id equiv
 outlet_old_riverID <- river_discharge_constant %>%
@@ -1275,17 +1328,18 @@ river_discharge_methods <- river_discharge_con %>%
 
 i <- 4
 
-month_list <- c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")
+month_list <- c("01", "02", "03", "04", "05", "06",
+                "07", "08", "09", "10", "11", "12")
 
 river_discharge_methods %>%
     dplyr::mutate("month" = lubridate::month(.data$Date)) %>%
     dplyr::filter(.data$month %in% c(1,5)) %>%
     ggplot()+
-    labs(title = "Daily time step downscaled and routed discharge")+
+        labs(title = "Daily time step downscaled and routed discharge")+
     geom_line(aes(x = Date, y = ERA5_land, col = routing_method))+
     theme_bw()+
     facet_wrap(vars(month),nrow = 2, scales = "free")
-
+# ----------------------------------------------------------------- #
 ```
 
 # Footnote on caveats and future possibilities
@@ -1294,9 +1348,9 @@ The aim of this example was to demonstrate package functionality for an
 anabranching river network; it was not to estimate accurate discharges at high
 temporal resolution. Nevertheless, the above estimates of discharge calculated
 at reach resolution might be useful for estimating hydraulic geometries (e.g.,
-widths and depths) from approximate relationships (e.g., Pistocchi and Pennington (2006); ),
-which could be useful for estimating habitat availability (e.g., for diadromous
-fishes).
+widths and depths) from approximate relationships (e.g., Pistocchi and
+Pennington (2006); Morel et al., (2020)), which could be useful for estimating
+habitat availability (e.g., for salmonids).
 
 Potential future work might include:
 

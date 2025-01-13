@@ -459,6 +459,13 @@ accumulate_runoff_constant <- function(HS,
       
     # need to calculate averages from each alternative route set
     # extract all time series
+    # Note - if using accumulate_runoff_constant_complex(), length(output.list)
+    # will be 1, so the code below generates no new information. As such, the
+    # following code is only strictly necessary for the computationally
+    # inefficient method, whereby a river system has not been grouped into
+    # topologically distinct subgroups. That is, the inefficient method routes
+    # runoff for all possible edge paths to all outlets from all reaches, before
+    # calculating reach average discharge using the code below.
       output.list.timeseries = lapply(1:length(output.list), function(listid){
           output.list[[listid]] %>%
               sf::st_drop_geometry() %>%

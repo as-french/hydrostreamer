@@ -395,7 +395,7 @@ ERA5_Land_NC_runoff13 <- list(c(paste0(dirName,"surface_runoff_hourly_8dp_",
 # read file
 r <- terra::rast(ERA5_Land_NC_runoff13[[1]])
 
-# load subbasins to extract extent of GRUN in GRUN projection
+# load subbasins to extract extent of ERA5 in ERA5 projection
 subcatchments_region_i <- hydrostreamer::miera_subcatchments %>%
     sf::st_cast("POLYGON") %>%
     sf::st_transform(crs = terra::crs(r)) %>%
@@ -447,7 +447,7 @@ ERA5_Land_NC_runoff13 <- list(c(paste0(dirName,"surface_runoff_daily_8dp_",
 # read file
 r <- terra::rast(ERA5_Land_NC_runoff13[[1]])
 
-# load subbasins to extract extent of GRUN in GRUN projection
+# load subbasins to extract extent of ERA5 in ERA5 projection
 subcatchments_region_i <- hydrostreamer::miera_subcatchments %>%
     sf::st_cast("POLYGON") %>%
     sf::st_transform(crs = terra::crs(r)) %>%
