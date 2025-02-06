@@ -59,8 +59,8 @@ for processing hourly resolution runoff data and working with anabranching (or
 "multithread") digital river networks. Specifically, the presented workflow uses
 state-of-the-art runoff grid products produced by the ECMWF to illustrate
 differences in catchment outflow discharge estimates owing to choices of
-downscaling and routing methods (constant vs. instantaneous) and data temporal
-resolution (daily vs. hourly).
+downscaling and routing methods (constant, instantaneous and Muskingum-Cunge)
+and data temporal resolution (daily vs. hourly).
 
 The ECMWF ERA5-Land data included in this package pertain to the extent of the
 river Miera catchment in Spain as below (and the Shannon catchment in Ireland
@@ -722,7 +722,7 @@ accumulated discharge time series calculated at each of these subgroup outlets
 is then substituted into one or more of the upper reaches immediately downstream
 of the first subgroup topologically, and so on.
 
-The inefficent method does not split the network into topological groups.
+The inefficient method does not split the network into topological groups.
 Instead, a call to `hydrostreamer::accumulate_runoff()` will route runoff from
 each reach through all possible downstream paths to outlets before averaging
 discharge estimates for each reach. As a result of the averaging, there are
@@ -734,8 +734,8 @@ catchment, which contains only one bifurcation.
 Note, it is advisable to always use the efficient method and split the catchment
 into appropriate topological chunks. This is for two main reasons. First, the
 processing time will be excessive, and second, the method will fail due to
-insufficnet RAM. We provide example data for the Shannon catchment to
-demonstrate that even the efficent method will take ~50 minutes to run after
+insufficient RAM. We provide example data for the Shannon catchment to
+demonstrate that even the efficient method will take ~50 minutes to run after
 having split the catchment into ~40 topologically ordered groups and a total of
 ~25 000 reaches to facilitate constant velocity routing. It is not advisable to
 use instantaneous routing for hourly time steps, but may be appropriate for
@@ -745,6 +745,7 @@ monthly, or daily in some instances.
 
 # higher computational efficiency method splitting into distinct topologically
 # ordered groups
+
 RB_join_updated <-  hydrostreamer::split_network_at_bifurcations(RB_join,
     riverID = "riverID",
     verbose = TRUE)
@@ -766,8 +767,9 @@ river_discharge_constant <- hydrostreamer::accumulate_runoff_constant_complex(
     verbose = TRUE
 )
 })
-# 50 seconds for 1 year of hourly time-step runoff for 832 river segments in
+# 41 seconds for 1 year of hourly time-step runoff for 832 river segments in
 # Miera on standard laptop (2.10 GHz processor)
+
 # ---------------------------------------------------------------------------- #
 
 river_discharge_constant$mean_discharge <- 
@@ -804,7 +806,83 @@ river_discharge_constant %>%
 
 ```
 
-```{r plot_constant_velocity_routing_time_series_hourly}
+We also present the Muskingum-Cunge method, which is now also applicable to
+hourly runoff data and anabranching river networks.
+
+```{r plot_muskingum_cunge_routing_split_reaches_hourly}
+
+# higher computational efficiency method splitting into distinct topologically
+# ordered groups
+
+shallowest_grad = min(hydrostreamer::miera_rivers$grad[hydrostreamer::miera_rivers$grad > 0])
+
+RB_join_updated <-  hydrostreamer::split_network_at_bifurcations(RB_join,
+    riverID = "riverID",
+    verbose = TRUE) %>%
+    dplyr::left_join(.,hydrostreamer::miera_rivers %>%
+                         sf::st_drop_geometry() %>%
+                         dplyr::select("riverID", "grad") %>%
+                         dplyr::rename("old_riverID" = "riverID"),
+                     by = "old_riverID") %>%
+    dplyr::mutate("grad" = dplyr::case_when(
+        .data$grad <=0 ~ shallowest_grad,
+        .default = .data$grad
+    ))
+
+RB_join_updated %>%
+    ggplot()+
+    labs(title = "Catchment split into topologically ordered groups",
+        subtitle = "Constant velocity routing is applied sequentially to group 1, 2 and so on...") +
+    geom_sf(aes(geometry = geom, col = factor(river_group_new)))+
+    theme_bw()
+
+system.time({
+river_discharge_muskingum_cunge <- hydrostreamer::accumulate_runoff_muskingum_cunge_complex(
+    sf_river_network = RB_join_updated,
+    riverID = "riverID", 
+    runoff_var_name = "ERA5_land",
+    slope_var_name = "grad",
+    catchment_subgroup_var_name = "river_group_new",
+    verbose = TRUE
+)
+})
+# ---------------------------------------------------------------------------- #
+
+river_discharge_muskingum_cunge$mean_discharge <- 
+    sapply(river_discharge_muskingum_cunge$discharge_ts, function(x)
+    mean(x$ERA5_land))
+
+# https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
+river_discharge_muskingum_cunge %>%
+    ggplot() +
+    geom_sf(aes(geometry = geom, col = mean_discharge)) +
+    scale_color_gradient(name = "Discharge (m3/s)",
+                         low = "#bdd7e7",
+                         high = "#08519c") +
+    labs(title = "Mean annual discharge",
+         subtitle = "Routing method: Constant velocity") +
+    theme_bw()
+
+# ---------------------------------------------------------------------------- #
+# NOTE low computational efficiency (and potentially incorrect) method, but will
+# work for complex rivers
+# system.time({
+# river_discharge_constant_slow <-
+#     hydrostreamer::accumulate_runoff(
+#         RB_join,
+#         routing_method = "constant",
+#         velocity = RB_join$Maidment_velocity_ms,
+#         verbose = TRUE
+#     ) %>%
+# sf::st_as_sf()
+# })
+# # 80 seconds
+# 
+# ---------------------------------------------------------------------------- #
+
+```
+
+```{r plot_all_routing_time_series_hourly}
 outlet_riverID <- river_discharge_constant$riverID[which((sapply(river_discharge_constant$NEXT, function(x){
     x[[1]] == -9999
 }) %>%
@@ -827,15 +905,58 @@ river_discharge_con = river_discharge_constant %>%
     dplyr::filter(.data$riverID %in% outlet_old_riverID) %>%
     tidyr::unnest("discharge_ts") %>%
     dplyr::mutate("routing_method" = "instant")
+ 
+  river_discharge_musk_c <- river_discharge_muskingum_cunge %>%
+    dplyr::filter(.data$old_riverID %in% outlet_old_riverID) %>%
+    dplyr::slice_max(.data$UP_SEGMENTS) %>%
+    tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "muskingum_cunge")
     
 river_discharge_methods <- river_discharge_con %>%
     dplyr::bind_rows(river_discharge_ins) %>%
+    dplyr::bind_rows(river_discharge_musk_c) %>%
     dplyr::arrange(.data$Date)
 
-i <- 4
+river_discharge_methods %>%
+    dplyr::mutate("month" = lubridate::month(.data$Date)) %>%
+    dplyr::filter(.data$month %in% c(1,5)) %>%
+    ggplot()+
+        labs(title = "Hourly time step downscaled and routed discharge")+
+    geom_line(aes(x = Date, y = ERA5_land, col = routing_method))+
+    theme_bw()+
+    facet_wrap(vars(month),nrow = 2, scales = "free")
 
-month_list <- c("01", "02", "03", "04", "05", "06",
-                "07", "08", "09", "10", "11", "12")
+# --------------------------------------------------------------------------- #
+# RANDOM reach
+set.seed(1980)
+random_riverID <- sample(river_discharge_constant$riverID,size = 1)
+
+random_riverID_old_riverID <- river_discharge_constant %>%
+    dplyr::filter(.data$riverID == random_riverID) %>%
+    dplyr::pull("old_riverID")
+
+# constant routing
+river_discharge_con = river_discharge_constant %>%
+    dplyr::filter(.data$old_riverID %in% random_riverID_old_riverID) %>%
+    dplyr::slice_max(.data$UP_SEGMENTS) %>%
+    tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "constant")
+
+ river_discharge_ins <- river_discharge_instant %>%
+    dplyr::filter(.data$riverID %in% random_riverID_old_riverID) %>%
+    tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "instant")
+ 
+  river_discharge_musk_c <- river_discharge_muskingum_cunge %>%
+    dplyr::filter(.data$old_riverID %in% random_riverID_old_riverID) %>%
+    dplyr::slice_max(.data$UP_SEGMENTS) %>%
+    tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "muskingum_cunge")
+    
+river_discharge_methods <- river_discharge_con %>%
+    dplyr::bind_rows(river_discharge_ins) %>%
+    dplyr::bind_rows(river_discharge_musk_c) %>%
+    dplyr::arrange(.data$Date)
 
 river_discharge_methods %>%
     dplyr::mutate("month" = lubridate::month(.data$Date)) %>%
@@ -1259,7 +1380,7 @@ river_discharge_constant <- hydrostreamer::accumulate_runoff_constant_complex(
     verbose = TRUE
 )
 })
-# 14 seconds for 1 year of daily time-step runoff for 832 river segments in
+# 12 seconds for 1 year of daily time-step runoff for 832 river segments in
 # Miera on standard laptop (2.10 GHz processor)
 
 # ---------------------------------------------------------------------------- #
@@ -1270,6 +1391,80 @@ river_discharge_constant$mean_discharge <-
 
 # https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
 river_discharge_constant %>%
+    ggplot() +
+    geom_sf(aes(geometry = geom, col = mean_discharge)) +
+    scale_color_gradient(name = "Discharge (m3/s)",
+                         low = "#bdd7e7",
+                         high = "#08519c") +
+    labs(title = "Mean annual discharge",
+         subtitle = "Routing method: Constant velocity") +
+    theme_bw()
+
+# ---------------------------------------------------------------------------- #
+# NOTE low computational efficiency (and potentially incorrect) method, but will
+# work for complex rivers
+# system.time({
+# river_discharge_constant_slow <-
+#     hydrostreamer::accumulate_runoff(
+#         RB_join,
+#         routing_method = "constant",
+#         velocity = RB_join$Maidment_velocity_ms,
+#         verbose = TRUE
+#     ) %>%
+# sf::st_as_sf()
+# })
+# 22 seconds
+# 
+# ---------------------------------------------------------------------------- #
+```
+
+```{r plot_muskingum_cunge_routing_split_reaches_daily}
+
+# higher computational efficiency method splitting into distinct topologically
+# ordered groups
+shallowest_grad = min(hydrostreamer::miera_rivers$grad[hydrostreamer::miera_rivers$grad > 0])
+
+RB_join_updated <-  hydrostreamer::split_network_at_bifurcations(RB_join,
+    riverID = "riverID",
+    verbose = TRUE) %>%
+    dplyr::left_join(.,hydrostreamer::miera_rivers %>%
+                         sf::st_drop_geometry() %>%
+                         dplyr::select("riverID", "grad") %>%
+                         dplyr::rename("old_riverID" = "riverID"),
+                     by = "old_riverID") %>%
+    dplyr::mutate("grad" = dplyr::case_when(
+        .data$grad <=0 ~ shallowest_grad,
+        .default = .data$grad
+    ))
+
+RB_join_updated %>%
+    ggplot()+
+    labs(title = "Catchment split into topologically ordered groups",
+        subtitle = "Constant velocity routing is applied sequentially to group 1, 2 and so on...") +
+    geom_sf(aes(geometry = geom, col = factor(river_group_new)))+
+    theme_bw()
+
+system.time({
+river_discharge_muskingum_cunge <- hydrostreamer::accumulate_runoff_muskingum_cunge_complex(
+    sf_river_network = RB_join_updated,
+    riverID = "riverID", 
+    runoff_var_name = "ERA5_land",
+    slope_var_name = "grad",
+    catchment_subgroup_var_name = "river_group_new",
+    verbose = TRUE
+)
+})
+# 10 seconds for 1 year of daily time-step runoff for 832 river segments in
+# Miera on standard laptop (2.10 GHz processor)
+
+# ---------------------------------------------------------------------------- #
+
+river_discharge_muskingum_cunge$mean_discharge <- 
+    sapply(river_discharge_muskingum_cunge$discharge_ts, function(x)
+    mean(x$ERA5_land))
+
+# https://colorbrewer2.org/#type=sequential&scheme=Blues&n=3
+river_discharge_muskingum_cunge %>%
     ggplot() +
     geom_sf(aes(geometry = geom, col = mean_discharge)) +
     scale_color_gradient(name = "Discharge (m3/s)",
@@ -1321,15 +1516,17 @@ river_discharge_con = river_discharge_constant %>%
     dplyr::filter(.data$riverID %in% outlet_old_riverID) %>%
     tidyr::unnest("discharge_ts") %>%
     dplyr::mutate("routing_method" = "instant")
+ 
+   river_discharge_musk_c <- river_discharge_muskingum_cunge %>%
+    dplyr::filter(.data$old_riverID %in% outlet_old_riverID) %>%
+    dplyr::slice_max(.data$UP_SEGMENTS) %>%
+    tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "muskingum_cunge")
     
 river_discharge_methods <- river_discharge_con %>%
     dplyr::bind_rows(river_discharge_ins) %>%
+    dplyr::bind_rows(river_discharge_musk_c) %>%
     dplyr::arrange(.data$Date)
-
-i <- 4
-
-month_list <- c("01", "02", "03", "04", "05", "06",
-                "07", "08", "09", "10", "11", "12")
 
 river_discharge_methods %>%
     dplyr::mutate("month" = lubridate::month(.data$Date)) %>%

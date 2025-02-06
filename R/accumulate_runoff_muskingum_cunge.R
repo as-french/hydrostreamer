@@ -196,8 +196,8 @@ accumulate_runoff_muskingum_cunge <- function(HS,
         unlist() %>%
         unique() %>%
         sort() %>%
-        lubridate::as_date()
-    
+        lubridate::as_datetime()
+
     # datetimes <- lubridate::as_datetime(dates)
     
     intervals <- vector("numeric", length(dates))
