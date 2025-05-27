@@ -28,7 +28,8 @@ directed acyclic graphs.}
 ordered groups.
 series.}
 
-\item{catchment_subgroup_var_name}{Character string of column name for reach velocity.}
+\item{catchment_subgroup_var_name}{Character string of column name for
+topologically ordered groups.}
 
 \item{verbose}{Boolean. Print messages.}
 }

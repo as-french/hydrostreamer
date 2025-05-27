@@ -1,29 +1,31 @@
-#' Split a HS network into spatially distinct chunks for iterative constant
-#' velocity routing
+#' Split a HS network into spatially distinct chunks for iterative runoff
+#' routing of complex anabranching digital river networks
 #' 
 #' A method for splitting vector river networks into spatially distinct chunks
 #' for more efficient runoff routing of anabranching networks than simply
-#' running hydrostreamer::accumulate_runoff(routing_method = "constant").
+#' running hydrostreamer::accumulate_runoff().
 #'
 #' @param sf_river_network A LINESTRING simple feature collection.
 #' @param riverID unique edge identifier.
 #' @param verbose Boolean. Print messages.
 #'
-#' @details This function reorganizes an HS river object by topology and
-#'   generates topologically ordered groups. The funtion identifies each
-#'   bifurcation point in the network and splits the network at these points
-#'   using a small buffer (10cm). Then the function identifies the resulting
-#'   spatially distinct groups. The groups are then ordered topologically (each
-#'   is assigned a unique id; 1 being furthest upstream and so on), restoring
-#'   the original LINESTRING geometries prior to splitting with buffers.
+#' @details This function is designed to topologically order a digital
+#'   river network (LINESTRING sfc), identify each downstream bifurcation point
+#'   in the network and split the network at these points using a small buffer
+#'   (1cm). Then the function identifies the resulting spatially distinct
+#'   groups maintaining topological order.
 #'   
-#' @return Returns the river network with an additional column denoting the
-#'   topological order by which routing must occur.
-#' 
+#' @return Returns the river network with an additional three columns denoting
+#'   the the spatially distinct subgroups "river_group_new", reach specific
+#'   topological order "topo_order", a new NEXT column that replaces values for
+#'   the most downstream segment in each new topologically ordered subgroup with
+#'   -9999 for compatibility with _complex routing methods. The original NEXT
+#'   column is renamed to "NEXT_stored".
+#'   
 #' @examples
 #' # Miera example
 #' library(dplyr)
-#'
+#' 
 #'  miera = hydrostreamer::miera_rivers %>%
 #'      dplyr::mutate("default_order" = dplyr::row_number()) %>%
 #'      hydrostreamer::river_network(riverID = "riverID",
@@ -33,7 +35,7 @@
 #'  # ggplot()+
 #'  #    geom_sf(aes(geometry = geom, col = default_order))
 #' 
-#'  miera_split_at_bifurcations <- 
+#'  miera_split_at_bifurcations <-
 #'      split_network_at_bifurcations(miera,
 #'    riverID = "riverID",
 #'    verbose = TRUE)
@@ -67,10 +69,10 @@ split_network_at_bifurcations <- function(sf_river_network,
     reaches_just_upstream_of_bifurcation <- sf_river_network %>%
         dplyr::filter(lengths(.data$NEXT) > 1)
     
-    split_points <- reaches_just_upstream_of_bifurcation %>%
-        sf::st_line_sample(sample = 1) %>% sf::st_as_sf() %>%
-        dplyr::rename("geom" = "x") %>%
-        sf::st_cast("POINT")
+    # split_points <- reaches_just_upstream_of_bifurcation %>%
+    #     sf::st_line_sample(sample = 1) %>% sf::st_as_sf() %>%
+    #     dplyr::rename("geom" = "x") %>%
+    #     sf::st_cast("POINT")
     
     # sf_river_network %>%
     #     ggplot()+
@@ -92,7 +94,7 @@ split_network_at_bifurcations <- function(sf_river_network,
     buffers_to_split_by <- reaches_just_upstream_of_bifurcation %>%
         sf::st_line_sample(., sample = 1) %>%
         sf::st_cast("POINT") %>%
-        sf::st_buffer(0.1) %>%
+        sf::st_buffer(0.01) %>%
         sf::st_as_sf() %>%
         dplyr::rename("geom" = "x")
     
@@ -131,7 +133,7 @@ split_network_at_bifurcations <- function(sf_river_network,
         dplyr::bind_rows(river_lines_intersecting_buffers_shortened) %>%
         # dplyr::filter(!c(lengths(.data$NEXT) > 1)) %>%
         dplyr::rename("subcatch_river_group" = "river_group") %>%
-        group_rivers(verbose = TRUE)
+        group_rivers(verbose = verbose)
     
     # join new subgroups to original geometries and spit
     bifurcation_sub_groups.list.upd <- sf_river_network %>%
@@ -154,7 +156,7 @@ split_network_at_bifurcations <- function(sf_river_network,
     # get order routing should be performed
     bifurcation_sub_groups.list.upd.ord_topo <- bifurcation_sub_groups.list.upd %>%
         arrange_by_topology(riverID = "riverID",
-                                          verbose = TRUE)
+                                          verbose = verbose)
     
     # set up group order for processing
     

@@ -11,7 +11,8 @@
 #'   directed acyclic graphs.
 #' @param riverID unique edge identifier.
 #' @param runoff_var_name Character string of column name for runoff time.
-#' @param catchment_subgroup_var_name Character string of column name for reach velocity.
+#' @param catchment_subgroup_var_name Character string of column name for
+#'   topologically ordered groups.
 #' @param velocity_var_name Character string of column name for topologically
 #'   ordered groups.
 #'   series.
@@ -72,7 +73,7 @@ accumulate_runoff_constant_complex <- function(sf_river_network,
                 bifurcation_sub_groups.processing.list[[i]],
                 routing_method = "constant",
                 velocity = bifurcation_sub_groups.processing.list[[i]][[velocity_var_name]],
-                verbose = TRUE
+                verbose = verbose
             ) %>%
                 dplyr::rename("NEXT_old" = "NEXT") %>%
                 dplyr::rename("NEXT" = "NEXT_stored")
@@ -139,7 +140,7 @@ accumulate_runoff_constant_complex <- function(sf_river_network,
                 for(k in 1:length(river_group_of_bifurcated_channels_to_assign_runoff.list)){
                 
                 relevant_downstream_channel_data <- 
-                    bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]] %>%
+                    bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]] %>%
                     dplyr::filter(.data$riverID %fin% riverIDs_of_bifurcated_channels_to_assign_runoff)
                 
                 relevant_downstream_channel_data.updated <- relevant_downstream_channel_data %>%
@@ -160,21 +161,21 @@ accumulate_runoff_constant_complex <- function(sf_river_network,
                 # bind updated runoff time series for bifurcated forks back to relevant group(s)
                 # and reassign HS attributes
                 
-                bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]] <- 
-                    bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]] %>%
+                bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]] <- 
+                    bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]] %>%
                     dplyr::filter(!c(.data$riverID %fin% riverIDs_of_bifurcated_channels_to_assign_runoff)) %>%
                     dplyr::bind_rows(relevant_downstream_channel_data.updated,.)
                 
-                bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]] <-
-                    assign_class(bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]], 
+                bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]] <-
+                    assign_class(bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]], 
                                                  c("HS"))
                 
-                bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]] <-
-                    mod_HS_attributes(bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]],
+                bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]] <-
+                    mod_HS_attributes(bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]],
                                                       next_col = TRUE,
                                                       col = "NEXT")
-                bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]] <-
-                    mod_HS_attributes(bifurcation_sub_groups.processing.list[[river_group_of_bifurcated_channels_to_assign_runoff.list[[k]]]],
+                bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]] <-
+                    mod_HS_attributes(bifurcation_sub_groups.processing.list[[as.character(river_group_of_bifurcated_channels_to_assign_runoff.list[[k]])]],
                                                       prev_col = TRUE,
                                                       col = "PREVIOUS")
                 }
@@ -194,7 +195,7 @@ accumulate_runoff_constant_complex <- function(sf_river_network,
     # restore original NEXT and PREVIOUS columns
     bifurcation_sub_groups.processing.list.bind.restored_lookups <- 
         bifurcation_sub_groups.processing.list.bind %>%
-        dplyr::select(-c("NEXT","PREVIOUS")) %>%
+        dplyr::select(-c("NEXT","PREVIOUS","NEXT_old")) %>%
         dplyr::left_join(., (sf_river_network %>%
                                  sf::st_drop_geometry() %>%
                                  dplyr::select("riverID","NEXT_stored", "PREVIOUS") %>%

@@ -2,8 +2,8 @@
 % Please edit documentation in R/split_network_at_bifurcations.R
 \name{split_network_at_bifurcations}
 \alias{split_network_at_bifurcations}
-\title{Split a HS network into spatially distinct chunks for iterative constant
-velocity routing}
+\title{Split a HS network into spatially distinct chunks for iterative runoff
+routing of complex anabranching digital river networks}
 \usage{
 split_network_at_bifurcations(
   sf_river_network,
@@ -19,22 +19,24 @@ split_network_at_bifurcations(
 \item{verbose}{Boolean. Print messages.}
 }
 \value{
-Returns the river network with an additional column denoting the
-  topological order by which routing must occur.
+Returns the river network with an additional three columns denoting
+  the the spatially distinct subgroups "river_group_new", reach specific
+  topological order "topo_order", a new NEXT column that replaces values for
+  the most downstream segment in each new topologically ordered subgroup with
+  -9999 for compatibility with _complex routing methods. The original NEXT
+  column is renamed to "NEXT_stored".
 }
 \description{
 A method for splitting vector river networks into spatially distinct chunks
 for more efficient runoff routing of anabranching networks than simply
-running hydrostreamer::accumulate_runoff(routing_method = "constant").
+running hydrostreamer::accumulate_runoff().
 }
 \details{
-This function reorganizes an HS river object by topology and
-  generates topologically ordered groups. The funtion identifies each
-  bifurcation point in the network and splits the network at these points
-  using a small buffer (10cm). Then the function identifies the resulting
-  spatially distinct groups. The groups are then ordered topologically (each
-  is assigned a unique id; 1 being furthest upstream and so on), restoring
-  the original LINESTRING geometries prior to splitting with buffers.
+This function is designed to topologically order a digital
+  river network (LINESTRING sfc), identify each downstream bifurcation point
+  in the network and split the network at these points using a small buffer
+  (1cm). Then the function identifies the resulting spatially distinct
+  groups maintaining topological order.
 }
 \examples{
 # Miera example
@@ -49,7 +51,7 @@ library(dplyr)
  # ggplot()+
  #    geom_sf(aes(geometry = geom, col = default_order))
 
- miera_split_at_bifurcations <- 
+ miera_split_at_bifurcations <-
      split_network_at_bifurcations(miera,
    riverID = "riverID",
    verbose = TRUE)
