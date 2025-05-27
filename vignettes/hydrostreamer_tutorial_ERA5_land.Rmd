@@ -757,6 +757,18 @@ RB_join_updated %>%
     geom_sf(aes(geometry = geom, col = factor(river_group_new)))+
     theme_bw()
 
+# instantaneous
+system.time({
+river_discharge_instant_2 <- hydrostreamer::accumulate_runoff_instant_complex(
+    sf_river_network = RB_join_updated,
+    riverID = "riverID", 
+    runoff_var_name = "ERA5_land",
+    catchment_subgroup_var_name = "river_group_new",
+    verbose = TRUE
+)
+})
+
+# constant
 system.time({
 river_discharge_constant <- hydrostreamer::accumulate_runoff_constant_complex(
     sf_river_network = RB_join_updated,
@@ -906,6 +918,12 @@ river_discharge_con = river_discharge_constant %>%
     tidyr::unnest("discharge_ts") %>%
     dplyr::mutate("routing_method" = "instant")
  
+  river_discharge_ins_2 <- river_discharge_instant_2 %>%
+    dplyr::filter(.data$old_riverID %in% outlet_old_riverID) %>%
+    dplyr::slice_max(.data$UP_SEGMENTS) %>%
+      tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "instant2")
+ 
   river_discharge_musk_c <- river_discharge_muskingum_cunge %>%
     dplyr::filter(.data$old_riverID %in% outlet_old_riverID) %>%
     dplyr::slice_max(.data$UP_SEGMENTS) %>%
@@ -915,6 +933,7 @@ river_discharge_con = river_discharge_constant %>%
 river_discharge_methods <- river_discharge_con %>%
     dplyr::bind_rows(river_discharge_ins) %>%
     dplyr::bind_rows(river_discharge_musk_c) %>%
+    dplyr::bind_rows(river_discharge_ins_2) %>%
     dplyr::arrange(.data$Date)
 
 river_discharge_methods %>%
@@ -947,6 +966,12 @@ river_discharge_con = river_discharge_constant %>%
     tidyr::unnest("discharge_ts") %>%
     dplyr::mutate("routing_method" = "instant")
  
+   river_discharge_ins_2 <- river_discharge_instant_2 %>%
+    dplyr::filter(.data$old_riverID %in% random_riverID_old_riverID) %>%
+    dplyr::slice_max(.data$UP_SEGMENTS) %>%
+      tidyr::unnest("discharge_ts") %>%
+    dplyr::mutate("routing_method" = "instant2")
+ 
   river_discharge_musk_c <- river_discharge_muskingum_cunge %>%
     dplyr::filter(.data$old_riverID %in% random_riverID_old_riverID) %>%
     dplyr::slice_max(.data$UP_SEGMENTS) %>%
@@ -956,6 +981,7 @@ river_discharge_con = river_discharge_constant %>%
 river_discharge_methods <- river_discharge_con %>%
     dplyr::bind_rows(river_discharge_ins) %>%
     dplyr::bind_rows(river_discharge_musk_c) %>%
+    dplyr::bind_rows(river_discharge_ins_2) %>%
     dplyr::arrange(.data$Date)
 
 river_discharge_methods %>%
