@@ -303,6 +303,14 @@ accumulate_runoff_muskingum_cunge <- function(HS,
             }
             
             # routing parameters
+            # An error can occur here if any of the inflow values are negative.
+            # It is not clear where this is generated (possibly in do_musk) a
+            # workaround for now is to set the minimum values for inflow as the
+            # smallest non-negative values. This bypasses the error related to
+            # MC_parameters if(w < 10), where an nan value is calculated.
+            
+            inflow[inflow<=0] <- min(inflow[inflow>0], na.rm = TRUE)
+            
             par <- MC_parameters(inflow,
                                  seg,
                                  compute_qref,
