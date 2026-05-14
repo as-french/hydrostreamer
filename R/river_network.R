@@ -188,6 +188,10 @@ river_network <- function(river,
     #######################
     #######################
     # get number of upstream river segments
+    # TO DO (noted 2025-08-24) fix this function to work with multi-thread river
+    # channels. Without fix, currently undercounts number of upstream segments
+    # in some cases. Not yet clear if geometry edge case, or code
+    # logic/algorithm problem.
     if(verbose) pb <- txtProgressBar(min = 0, max = nSegments*2, style = 3)
     for(i in 1:nSegments) {
         to <- TO[[i]]

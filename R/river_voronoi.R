@@ -68,7 +68,7 @@ river_voronoi<- function(river, aoi, riverID = "riverID", verbose=FALSE) {
              sf::st_sf() %>%
              sf::st_join(vorPoints) %>%
              sf::st_make_valid() %>% 
-             dplyr::group_by_(riverID) %>%
+             dplyr::group_by(.data$riverID) %>%
              dplyr::summarise() %>%
              sf::st_intersection(sf::st_geometry(aoi))
       )

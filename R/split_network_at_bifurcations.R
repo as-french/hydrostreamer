@@ -143,11 +143,6 @@ split_network_at_bifurcations <- function(sf_river_network,
                              dplyr::select("riverID","river_group"),
                          by = "riverID")
     
-    # bifurcation_sub_groups.list.upd %>%
-    #     ggplot()+
-    #     geom_sf(aes(geometry = geom, col = factor(river_group)),
-    #     show.legend = TRUE)
-
     if (verbose == TRUE) {
         message("Reordering reaches by topology and arranging by group...",
                 paste0("[", Sys.time(), "]"))
@@ -160,24 +155,27 @@ split_network_at_bifurcations <- function(sf_river_network,
     
     # set up group order for processing
     
+    # ------------------------------------------------------------------------ #
+    # reorder groups based on highest topo order of any single reach in each group
+    order_of_processing_new <- bifurcation_sub_groups.list.upd.ord_topo |>
+        sf::st_drop_geometry() |>
+        dplyr::select("topo_order","river_group") |>
+        dplyr::group_by(.data$river_group) |>
+        dplyr::reframe("max_topo_order" = max(.data$topo_order)) |>
+        dplyr::arrange(.data$max_topo_order) |>
+        dplyr::mutate("river_group_recode_info" = as.character(dplyr::row_number()))
+    
+    names(order_of_processing_new$river_group_recode_info) =
+        as.character(order_of_processing_new$river_group)
+    
+    named_vector_of_orders <- order_of_processing_new$river_group_recode_info
+    # ------------------------------------------------------------------------ #
+    
     reaches_just_upstream_of_bifurcation_IDs <-
         reaches_just_upstream_of_bifurcation %>%
         dplyr::pull("riverID")
     
-    order_of_processing <- bifurcation_sub_groups.list.upd.ord_topo %>%
-        dplyr::filter(.data$riverID %fin% (reaches_just_upstream_of_bifurcation %>%
-                                               dplyr::pull("riverID"))) %>%
-        dplyr::select("riverID","river_group","topo_order") %>%
-        dplyr::mutate("process_order" = rank(.data$topo_order)) %>%
-        dplyr::mutate("river_group_recode_info" = as.character(.data$process_order))
-    
-    names(order_of_processing$river_group_recode_info) = 
-        as.character(order_of_processing$river_group)
-    
-    named_vector_of_orders <- order_of_processing$river_group_recode_info
-    
-    # order edges by group, not forgetting to replace NEXT values for lowest edge in
-    # subgroup with -9999 following hydrostreamer convention
+    # ------------------------------------------------------------------------ #
     
     bifurcation_sub_groups.list.upd.ord_topo_upd <-
         bifurcation_sub_groups.list.upd.ord_topo %>%
@@ -197,6 +195,9 @@ split_network_at_bifurcations <- function(sf_river_network,
             )
         ) %>%
         dplyr::arrange(.data$river_group_new)
+    
+    # assign correct topo ordered groups
+    
     
     if (verbose == TRUE) {
         message("Restoring HS class...",

@@ -42,7 +42,7 @@ next_cell_up <- function(cell, drain.dir) {
 
 
 # helper for river_voronoi
-# moves starting and ending nodes either 0.0005 degrees, or 10 meters, 
+# moves starting and ending nodes either 0.0005 degrees, or 0.05 meters, 
 # depending on projection
 move_nodes <- function(river, verbose=FALSE) {
     
@@ -77,7 +77,7 @@ move_nodes <- function(river, verbose=FALSE) {
         }
         rivgeom <- sf::st_set_geometry(river, rivgeom)
     } else {
-        dist <- 10
+        dist <- 0.05
         for (line in 1:n) {
             coords <- sf::st_coordinates(river[line,])
             len <- NROW(coords)

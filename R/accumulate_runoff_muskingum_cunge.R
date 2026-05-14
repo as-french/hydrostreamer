@@ -343,7 +343,9 @@ accumulate_runoff_muskingum_cunge <- function(HS,
             
             test <- !is.na(nextriver[seg])
             if(test) {
-                test <- is.null(tempflow[[ nextriver[seg] ]])
+                #test <- (is.null(tempflow[[ nextriver[seg] ]]) | (all(is.na(tempflow[[ nextriver[seg] ]]))))
+                test <- is.null(tempflow[[ nextriver[seg] ]]) 
+                
                 if(test) {
                     tempflow[[ nextriver[seg] ]] <- outflow
                 } else {

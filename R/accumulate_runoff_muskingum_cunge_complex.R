@@ -59,7 +59,9 @@ accumulate_runoff_muskingum_cunge_complex <- function(
         verbose = FALSE,
         ...) {
     
-    
+    up_segments <- sf_river_network |>
+        sf::st_drop_geometry() |>
+        dplyr::select("riverID","UP_SEGMENTS")   
     
     if(is.null(manning_var_name)){
         sf_river_network[["mannings_n"]] = 0.035
@@ -155,6 +157,11 @@ accumulate_runoff_muskingum_cunge_complex <- function(
             river_group_of_bifurcated_channels_to_assign_runoff.list <- 
                 as.list(river_group_of_bifurcated_channels_to_assign_runoff)
             
+            # if no downstream group, then can skip to next i
+            if(length(river_group_of_bifurcated_channels_to_assign_runoff.list) == 0){
+                next
+            }
+            
             # update runoff time series in relevant downstream subgroup by
             # summing runoff_upstream_of_bifurcation with instantaneous
             # runoff at each bifurcated channel
@@ -221,7 +228,9 @@ accumulate_runoff_muskingum_cunge_complex <- function(
         dplyr::left_join(., (sf_river_network %>%
                                  sf::st_drop_geometry() %>%
                                  dplyr::select("riverID","NEXT_stored", "PREVIOUS") %>%
-                                 dplyr::rename("NEXT"= "NEXT_stored")), by = "riverID")
+                                 dplyr::rename("NEXT"= "NEXT_stored")), by = "riverID") |>
+        dplyr::select(-c("UP_SEGMENTS")) |>
+        dplyr::left_join(up_segments, by = "riverID")
     
     return(bifurcation_sub_groups.processing.list.bind.restored_lookups)
     

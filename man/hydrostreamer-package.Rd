@@ -21,6 +21,7 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Marko Kallio \email{marko@markokallio.fi} (\href{https://orcid.org/0000-0002-6917-7790}{ORCID})
   \item Vili Virkki \email{vili.virkki@aalto.fi} (\href{https://orcid.org/0000-0002-2603-3420}{ORCID})
 }
 

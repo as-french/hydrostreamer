@@ -46,6 +46,10 @@ accumulate_runoff_instant_complex <- function(sf_river_network,
                                           catchment_subgroup_var_name = "river_group_new",
                                           verbose = FALSE) {
     
+    up_segments <- sf_river_network |>
+        sf::st_drop_geometry() |>
+        dplyr::select("riverID","UP_SEGMENTS")
+    
     if (verbose == TRUE) {
         message("Split data into list in order of processing...",
                 paste0("[", Sys.time(), "]"))
@@ -129,6 +133,11 @@ accumulate_runoff_instant_complex <- function(sf_river_network,
                 # occasionally need to flow from one group into two downstream groups, so use a list
                 river_group_of_bifurcated_channels_to_assign_runoff.list <- 
                     as.list(river_group_of_bifurcated_channels_to_assign_runoff)
+            
+                # if no downstream group, then can skip to next i
+                if(length(river_group_of_bifurcated_channels_to_assign_runoff.list) == 0){
+                    next
+                }
                 
                 # update runoff time series in relevant downstream subgroup by
                 # summing runoff_upstream_of_bifurcation with instantaneous
@@ -196,7 +205,9 @@ accumulate_runoff_instant_complex <- function(sf_river_network,
         dplyr::left_join(., (sf_river_network %>%
                                  sf::st_drop_geometry() %>%
                                  dplyr::select("riverID","NEXT_stored", "PREVIOUS") %>%
-                                 dplyr::rename("NEXT"= "NEXT_stored")), by = "riverID")
+                                 dplyr::rename("NEXT"= "NEXT_stored")), by = "riverID") |>
+        dplyr::select(-c("UP_SEGMENTS")) |>
+        dplyr::left_join(up_segments, by = "riverID")
     
     return(bifurcation_sub_groups.processing.list.bind.restored_lookups)
     
