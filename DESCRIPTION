@@ -16,7 +16,7 @@ Description: This package provides functions to interpolate multiple
   route runoff down the network, and optimise predictions against observed 
   streamflow.
 Depends: 
-    R (>= 3.5.0)
+    R (>= 4.1.0)
 Encoding: UTF-8
 Imports:
     dplyr,

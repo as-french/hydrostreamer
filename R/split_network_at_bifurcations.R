@@ -65,9 +65,52 @@ split_network_at_bifurcations <- function(sf_river_network,
                 paste0("[", Sys.time(), "]"))
     }
     
-    # find bifurcation points (splits into at least 2 downstream channels)
+    # find bifurcation points based on lookups (splits into at least 2 downstream channels)
     reaches_just_upstream_of_bifurcation <- sf_river_network %>%
         dplyr::filter(lengths(.data$NEXT) > 1)
+    
+    # ------------------------------------------------------------------------ #
+    # find additional edge case bifurcation points where two headwater segments
+    # are touching at their upstream nodes. These would be missed based on
+    # lookup information alone. Ideally, these would not be present in a
+    # network, but perhaps make sense in the case of headwater lakes with two
+    # outflows and no apparent surface inflows.
+    # Filter for headwater reaches (no upstream elements)
+    headwaters <- sf_river_network %>%
+        dplyr::filter(lengths(.data$PREVIOUS) == 1 & sapply(.data$PREVIOUS, function(x) -9999 %in% x))
+    
+    # Extract the exact start points (upstream ends) of these headwater reaches
+    upstream_nodes <- headwaters %>%
+        sf::st_line_sample(sample = 0) %>%
+        sf::st_cast("POINT")
+    
+    # Find which upstream nodes touch ANY other reach in the full network
+    # st_intersects returns a list of indices; we look for lengths > 1 
+    # (1 because it will always intersect itself)
+    touching_indices <- which(lengths(sf::st_intersects(upstream_nodes, sf_river_network)) > 1)
+    
+    # Filter the headwater features that are touching, and create the buffers
+    reaches_touching_at_upstream_end <- headwaters[touching_indices, ]
+    
+    # Extract the unique start points of the touching headwaters
+    upstream_points <- reaches_touching_at_upstream_end %>%
+        sf::st_line_sample(sample = 0) %>%
+        sf::st_cast("POINT")
+    
+    # Find identical coordinates (each point matches itself and its touching pair)
+    equal_matrix <- sf::st_equals(upstream_points, upstream_points)
+    
+    # Keep only the first index from each pair of matching coordinates
+    unique_indices <- vapply(equal_matrix, function(x) x[1], FUN.VALUE = integer(1)) %>% 
+        unique()
+    
+    # Generate the final single buffer per pair
+    buffers_for_touching_splits <- upstream_points[unique_indices] %>%
+        sf::st_buffer(0.01) %>%
+        sf::st_as_sf() %>%
+        dplyr::rename("geom" = "x")
+    # ------------------------------------------------------------------------ #
+    
     
     # split_points <- reaches_just_upstream_of_bifurcation %>%
     #     sf::st_line_sample(sample = 1) %>% sf::st_as_sf() %>%
@@ -96,7 +139,8 @@ split_network_at_bifurcations <- function(sf_river_network,
         sf::st_cast("POINT") %>%
         sf::st_buffer(0.01) %>%
         sf::st_as_sf() %>%
-        dplyr::rename("geom" = "x")
+        dplyr::rename("geom" = "x") |>
+        dplyr::bind_rows(buffers_for_touching_splits)
     
     # split lines using difference
     
