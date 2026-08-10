@@ -1,5 +1,5 @@
 ---
-title: "hydrostreamer workflow using hourly gridded runoff"
+title: "hydrostreamer workflow using hourly gridded runoff and non-dentritic river networks"
 author: "Andrew French (adapted from Marko Kallio's tutorial)"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_document
@@ -26,7 +26,16 @@ editor_options:
 # Ensure that vignette can be built or is not evaluated if all Suggests are not
 # present (https://www.r-bloggers.com/2017/03/suggests-and-vignettes/)
 
-required <- c("exactextractr","terra","ggplot2","lwgeom","RSAGA", "plotly","tidyterra","lubridate")
+required <- c(
+    "exactextractr",
+    "terra",
+    "ggplot2",
+    "lwgeom",
+    "RSAGA",
+    "plotly",
+    "tidyterra",
+    "lubridate"
+)
 
 if (!all(unlist(lapply(required,
                        function(pkg)
@@ -56,7 +65,7 @@ library(exactextractr)
 
 The aim of this tutorial is to illustrate recent developments in `hydrostreamer`
 for processing hourly resolution runoff data and working with anabranching (or
-"multithread") digital river networks. Specifically, the presented workflow uses
+"multi-thread") digital river networks. Specifically, the presented workflow uses
 state-of-the-art runoff grid products produced by the ECMWF to illustrate
 differences in catchment outflow discharge estimates owing to choices of
 downscaling and routing methods (constant, instantaneous and Muskingum-Cunge)
@@ -71,13 +80,13 @@ in `hydrostreamer` were generated using Copernicus Climate Change Service
 information (2024).
 
 An alternative runoff grid data sample, GRUN (Ghiggi et al 2019), is also
-contained in the package convering the extent of the Shannon system. GRUN data
+contained in the package covering the extent of the Shannon system. GRUN data
 were published under the CC By 4.0 license and are provided at a monthly
-timestep.
+time-step.
 
 The data sources included in the package can be substituted with modelled runoff
 , e.g., using [`GR4J/GR4H`](https://hydrogr.github.io/airGR/) or similar to
-translate gridded ECMWF ERA5 reanlaysis (or SEAS5 seasonal forecast, or CMIP
+translate gridded ECMWF ERA5 reanalysis (or SEAS5 seasonal forecast, or CMIP
 projections) precipitation and evapotranspiration (or potential
 evapotranspiration derived from surface temperature using the Hargreaves-Samani
 method) into gridded runoff. Note however that this would require estimation of
@@ -109,17 +118,15 @@ plot((sf::st_union(hydrostreamer::miera_subcatchments)), add = TRUE)
 [EU-Hydro](https://land.copernicus.eu/en/products/eu-hydro?tab=main) with 111
 river segments. This river network can be represented by a directed acyclic
 graph. This network contains anabranching channels and can therefore not be
-classified as a "simple" dendritic acyclic graph. A larger example dataset
-is provided for the river Shannon in Ireland, which contains several
-anabranching/multi-thread channels and two outlets.
+classified as a "simple" dendritic acyclic graph. A larger example dataset is
+provided for the river Shannon in Ireland, which contains several
+anabranching/multi-thread channels and two outlets. These river networks, among
+other compatible river systems, can be found at
+https://doi.org/10.5281/zenodo.14366637 (French and McGinnity, 2026).
 
 One purpose of this document is to demonstrate the capabilities of hydrostreamer
 for routing discharge through these types of "complex" river networks ("complex"
-directed acyclic graphs). Currently, only
-`hydrostreamer::accumulate_runoff(routing_method = "instant")`,
-`hydrostreamer::accumulate_runoff_constant_complex()`
-`hydrostreamer::accumulate_runoff(routing_method = "constant")` will work with
-this type of network complexity. Each routing method works by dividing the total
+directed acyclic graphs). Each routing method works by dividing the total
 upstream discharge at a given time slice (for example) a single channel by the
 number of immediate downstream edges/reaches into which it branches, thereby
 each receives identical routed discharge (e.g., 1/2 discharge of the upstream
@@ -801,7 +808,7 @@ river_discharge_constant %>%
 
 # ---------------------------------------------------------------------------- #
 # NOTE low computational efficiency (and potentially incorrect) method, but will
-# work for complex rivers
+# run for complex rivers
 # system.time({
 # river_discharge_constant_slow <-
 #     hydrostreamer::accumulate_runoff(
@@ -858,6 +865,9 @@ river_discharge_muskingum_cunge <- hydrostreamer::accumulate_runoff_muskingum_cu
     verbose = TRUE
 )
 })
+# 66 seconds for 1 year of hourly time-step runoff for 832 river segments in
+# Miera on standard laptop (2.10 GHz processor)
+
 # ---------------------------------------------------------------------------- #
 
 river_discharge_muskingum_cunge$mean_discharge <- 
@@ -877,7 +887,7 @@ river_discharge_muskingum_cunge %>%
 
 # ---------------------------------------------------------------------------- #
 # NOTE low computational efficiency (and potentially incorrect) method, but will
-# work for complex rivers
+# run for complex rivers
 # system.time({
 # river_discharge_constant_slow <-
 #     hydrostreamer::accumulate_runoff(
@@ -1573,27 +1583,32 @@ temporal resolution. Nevertheless, the above estimates of discharge calculated
 at reach resolution might be useful for estimating hydraulic geometries (e.g.,
 widths and depths) from approximate relationships (e.g., Pistocchi and
 Pennington (2006); Morel et al., (2020)), which could be useful for estimating
-habitat availability (e.g., for salmonids).
+habitat availability (e.g., for salmonids, see French and McGinnity (2026)).
 
 Potential future work might include:
 
-(i) Automation of reach splitting to facilitate constant velocity runoff routing
-at hourly resolution (i.e., less reliance on qgisprocess or manual editing);
+(i) Development of an automated method for splitting reaches to facilitate
+constant velocity runoff routing at hourly resolution (i.e., less reliance on
+qgisprocess or manual editing);
 
 (ii) Comparison and statistical bias adjustment of reach scale estimates against
 gauge data (e.g., Empirical Quantile Mapping);
 
-(ii) Routing discharge at alternative temporal resolutions, such as the 3-6
+(iii) Routing discharge at alternative temporal resolutions, such as the 3-6
 hourly European Flood Awareness System Renalysis
 (https://doi.org/10.24381/cds.e3458969) which provides runoff at less than 2
 square kilometer resolution.
 
 This tutorial contains examples that call on the `terra` and `tidyterra`
 packages, and it might be desirable to replace the package's current dependency
-`raster` with `terra`. Note also that the Muskingam-Cunge routing method is not
-implemented for anabranching river networks.
+`raster` with `terra`.
 
 # References
+
+French, A.S., McGinnity P. (2026) AMBER Salmon: A digital river network
+containing reach-specific habitat variables related to the North-East Atlantic
+distribution of Atlantic salmon (Salmo salar). [Dataset]
+https://doi.org/10.5281/zenodo.14366637
 
 Ghiggi, G., Humphrey, V., Seneviratne, S. I., and Gudmundsson, L.: GRUN: an
 observation-based global gridded runoff dataset from 1902 to 2014, Earth Syst.

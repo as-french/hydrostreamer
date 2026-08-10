@@ -49,33 +49,41 @@ export(split_network_at_bifurcations)
 export(upstream)
 importFrom(Matrix,rankMatrix)
 importFrom(Rcpp,evalCpp)
-importFrom(dplyr,"%>%")
-importFrom(dplyr,.data)
-importFrom(dplyr,bind_rows)
+importFrom(dplyr,
+  "%>%",
+  .data,
+  bind_rows
+)
 importFrom(fastmatch,"%fin%")
-importFrom(hydroTSM,daily2annual)
-importFrom(hydroTSM,daily2monthly)
-importFrom(hydroTSM,dm2seasonal)
-importFrom(hydroTSM,drawTimeAxis)
-importFrom(hydroTSM,fdc)
-importFrom(hydroTSM,fdc.data.frame)
-importFrom(hydroTSM,fdc.default)
-importFrom(hydroTSM,fdc.matrix)
-importFrom(hydroTSM,fdc.zoo)
-importFrom(hydroTSM,monthly2annual)
-importFrom(hydroTSM,seasonalfunction)
-importFrom(hydroTSM,sfreq)
-importFrom(hydroTSM,time2season)
-importFrom(hydroTSM,vector2zoo)
+importFrom(hydroTSM,
+  daily2annual,
+  daily2monthly,
+  dm2seasonal,
+  drawTimeAxis,
+  fdc,
+  fdc.data.frame,
+  fdc.default,
+  fdc.matrix,
+  fdc.zoo,
+  monthly2annual,
+  seasonalfunction,
+  sfreq,
+  time2season,
+  vector2zoo
+)
 importFrom(lubridate,"%m+%")
 importFrom(methods,hasArg)
 importFrom(quadprog,solve.QP)
 importFrom(rlang,":=")
-importFrom(stats,complete.cases)
-importFrom(stats,lm)
-importFrom(stats,optim)
-importFrom(utils,hasName)
-importFrom(utils,setTxtProgressBar)
-importFrom(utils,txtProgressBar)
-importFrom(utils,write.csv)
+importFrom(stats,
+  complete.cases,
+  lm,
+  optim
+)
+importFrom(utils,
+  hasName,
+  setTxtProgressBar,
+  txtProgressBar,
+  write.csv
+)
 useDynLib(hydrostreamer, .registration = TRUE)
